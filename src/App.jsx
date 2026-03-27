@@ -1,14 +1,29 @@
 // src/App.jsx
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus } from 'lucide-react'
 import { getJobs, createJob, updateJob, deleteJob } from './lib/api.js'
 import JobCard from './components/JobCard.jsx'
 import JobModal from './components/JobModal.jsx'
 
-const PW_KEY = 'mailer-password'
+const COOKIE_NAME = 'mailer-password'
+const COOKIE_MINUTES = 10
+
+function getCookie() {
+  const match = document.cookie.split('; ').find(r => r.startsWith(COOKIE_NAME + '='))
+  return match ? decodeURIComponent(match.split('=')[1]) : ''
+}
+
+function setCookie(value) {
+  const expires = new Date(Date.now() + COOKIE_MINUTES * 60 * 1000).toUTCString()
+  document.cookie = `${COOKIE_NAME}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Strict`
+}
+
+function clearCookie() {
+  document.cookie = `${COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`
+}
 
 export default function App() {
-  const [password, setPassword] = useState(() => localStorage.getItem(PW_KEY) ?? '')
+  const [password, setPassword] = useState(() => getCookie())
   const [authenticated, setAuthenticated] = useState(false)
   const [pwInput, setPwInput] = useState('')
   const [pwError, setPwError] = useState('')
@@ -16,23 +31,40 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [editJob, setEditJob] = useState(null)
+  const pollRef = useRef(null)
 
-  const fetchJobs = useCallback(async (pw = password) => {
+  const refreshJobs = useCallback(async (pw) => {
     try {
       const data = await getJobs(pw)
       setJobs(data)
-      setAuthenticated(true)
-      localStorage.setItem(PW_KEY, pw)
+      setCookie(pw)
+      return true
     } catch (e) {
       if (e.message === 'UNAUTHORIZED') {
         setAuthenticated(false)
-        localStorage.removeItem(PW_KEY)
+        clearCookie()
+        if (pollRef.current) clearInterval(pollRef.current)
       }
+      return false
     }
-  }, [password])
+  }, [])
+
+  const startPolling = useCallback((pw) => {
+    if (pollRef.current) clearInterval(pollRef.current)
+    pollRef.current = setInterval(() => refreshJobs(pw), 60_000)
+  }, [refreshJobs])
 
   useEffect(() => {
-    if (password) fetchJobs(password)
+    const pw = getCookie()
+    if (pw) {
+      refreshJobs(pw).then(ok => {
+        if (ok) {
+          setAuthenticated(true)
+          startPolling(pw)
+        }
+      })
+    }
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [])
 
   const handleLogin = async (e) => {
@@ -43,7 +75,8 @@ export default function App() {
       setJobs(data)
       setPassword(pwInput)
       setAuthenticated(true)
-      localStorage.setItem(PW_KEY, pwInput)
+      setCookie(pwInput)
+      startPolling(pwInput)
     } catch (e) {
       if (e.message === 'UNAUTHORIZED') setPwError('비밀번호가 틀렸습니다.')
       else setPwError('연결 오류가 발생했습니다.')
