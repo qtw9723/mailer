@@ -50,6 +50,7 @@ export default function JobCard({ job, onToggle, onEdit, onDelete }) {
           <span className={`job-status-dot${job.is_active ? ' job-status-dot-active' : ''}`} />
           {job.is_active ? '실행 중' : '중지됨'}
         </span>
+        {job.use_index && <span className="job-meta-item job-badge job-badge-index"># 순번</span>}
         <span className="job-meta-item">누적 {job.send_count}회</span>
         <span className="job-meta-item">마지막: {fmt(job.last_sent_at)}</span>
       </div>

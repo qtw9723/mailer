@@ -171,6 +171,19 @@ body {
 }
 .job-badge-gmail { background: rgba(234,67,53,0.15); color: #f87171; }
 .job-badge-ms { background: rgba(0,120,212,0.15); color: #60a5fa; }
+.job-badge-index { background: rgba(157,143,252,0.12); color: #9d8ffc; }
+
+/* ── 체크박스 ── */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #a0a0b0;
+  cursor: pointer;
+}
+.checkbox-label input[type="checkbox"] { accent-color: #9d8ffc; width: 15px; height: 15px; cursor: pointer; }
+.checkbox-hint { font-size: 11px; color: #606070; }
 .job-status-dot {
   width: 7px; height: 7px;
   border-radius: 50%;

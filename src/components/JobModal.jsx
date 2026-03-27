@@ -18,13 +18,14 @@ export default function JobModal({ job, onSubmit, onClose, loading }) {
     if (!job) return 'hours'
     return job.interval_minutes >= 60 && job.interval_minutes % 60 === 0 ? 'hours' : 'minutes'
   })
+  const [useIndex, setUseIndex] = useState(job?.use_index ?? false)
 
   const handleSubmit = (e) => {
     e.preventDefault()
     const interval_minutes = intervalUnit === 'hours'
       ? Number(intervalValue) * 60
       : Number(intervalValue)
-    onSubmit({ name, sender, subject, body, recipients, interval_minutes })
+    onSubmit({ name, sender, subject, body, recipients, interval_minutes, use_index: useIndex })
   }
 
   return (
@@ -104,6 +105,17 @@ export default function JobModal({ job, onSubmit, onClose, loading }) {
                 <option value="hours">시간</option>
               </select>
             </div>
+          </div>
+
+          <div className="form-field">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={useIndex}
+                onChange={e => setUseIndex(e.target.checked)}
+              />
+              제목 앞에 순번 추가 <span className="checkbox-hint">(예: [1] 제목, [2] 제목 …)</span>
+            </label>
           </div>
 
           <div className="modal-actions">
