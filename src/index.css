@@ -1,0 +1,364 @@
+/* src/index.css */
+@import "tailwindcss";
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #0d0d14;
+  color: #e2e2e2;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  min-height: 100vh;
+}
+
+/* ── 비밀번호 게이트 ── */
+.gate-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0d0d14;
+  background-image: radial-gradient(rgba(157,143,252,0.07) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+.gate-card {
+  width: 100%;
+  max-width: 360px;
+  margin: 0 16px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(157,143,252,0.2);
+  border-radius: 16px;
+  padding: 36px 32px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.gate-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #f0f0f0;
+  margin: 0 0 6px;
+}
+.gate-subtitle {
+  font-size: 13px;
+  color: #606070;
+  margin: 0 0 24px;
+}
+.gate-input {
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(157,143,252,0.2);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: #e2e2e2;
+  outline: none;
+  margin-bottom: 14px;
+  transition: border-color 150ms ease;
+}
+.gate-input:focus { border-color: #9d8ffc; }
+.gate-btn {
+  width: 100%;
+  padding: 11px;
+  background: #9d8ffc;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+.gate-btn:hover { background: #b0a4fd; }
+.gate-error {
+  font-size: 12px;
+  color: rgb(248,113,113);
+  margin-top: 10px;
+  text-align: center;
+}
+
+/* ── 앱 레이아웃 ── */
+.app { min-height: 100vh; padding: 0 0 40px; }
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 32px;
+  border-bottom: 1px solid rgba(157,143,252,0.1);
+  background: rgba(255,255,255,0.01);
+}
+.app-title {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #9d8ffc;
+}
+.app-new-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: rgba(157,143,252,0.12);
+  border: 1px solid rgba(157,143,252,0.3);
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #9d8ffc;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+.app-new-btn:hover { background: rgba(157,143,252,0.2); }
+
+/* ── 작업 목록 ── */
+.job-list {
+  max-width: 860px;
+  margin: 28px auto;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.job-empty {
+  text-align: center;
+  color: #404050;
+  font-size: 14px;
+  padding: 60px 0;
+}
+
+/* ── 작업 카드 ── */
+.job-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(157,143,252,0.12);
+  border-radius: 14px;
+  padding: 18px 20px;
+  transition: border-color 150ms ease;
+}
+.job-card-active {
+  border-color: rgba(157,143,252,0.45);
+  background: rgba(157,143,252,0.04);
+}
+.job-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.job-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e8e8f0;
+}
+.job-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.job-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  color: #606070;
+}
+.job-meta-item { display: flex; align-items: center; gap: 4px; }
+.job-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.04em;
+}
+.job-badge-gmail { background: rgba(234,67,53,0.15); color: #f87171; }
+.job-badge-ms { background: rgba(0,120,212,0.15); color: #60a5fa; }
+.job-status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #404050;
+  display: inline-block;
+}
+.job-status-dot-active { background: #9d8ffc; box-shadow: 0 0 6px rgba(157,143,252,0.5); }
+
+/* ── 버튼 ── */
+.btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 150ms ease, color 150ms ease;
+}
+.btn-start {
+  background: rgba(157,143,252,0.1);
+  border-color: rgba(157,143,252,0.3);
+  color: #9d8ffc;
+}
+.btn-start:hover { background: rgba(157,143,252,0.2); }
+.btn-stop {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.1);
+  color: #a0a0b0;
+}
+.btn-stop:hover { background: rgba(255,255,255,0.08); }
+.btn-edit {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.08);
+  color: #808090;
+}
+.btn-edit:hover { color: #c0c0d0; background: rgba(255,255,255,0.07); }
+.btn-delete {
+  background: transparent;
+  border-color: transparent;
+  color: #505060;
+}
+.btn-delete:hover { color: rgb(248,113,113); background: rgba(248,113,113,0.1); }
+
+/* ── 모달 ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 20px;
+}
+.modal {
+  width: 100%;
+  max-width: 500px;
+  background: #13131f;
+  border: 1px solid rgba(157,143,252,0.2);
+  border-radius: 16px;
+  padding: 28px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f0f0f0;
+  margin: 0 0 24px;
+}
+.form-field { margin-bottom: 18px; }
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #8080a0;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.form-input, .form-textarea, .form-select {
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(157,143,252,0.15);
+  border-radius: 9px;
+  padding: 9px 12px;
+  font-size: 14px;
+  color: #e2e2e2;
+  outline: none;
+  transition: border-color 150ms ease;
+  font-family: inherit;
+}
+.form-input:focus, .form-textarea:focus, .form-select:focus { border-color: #9d8ffc; }
+.form-textarea { min-height: 100px; resize: vertical; }
+.form-select { cursor: pointer; }
+
+/* 발송 간격 행 */
+.interval-row { display: flex; gap: 8px; }
+.interval-row .form-input { flex: 1; }
+.interval-row .form-select { width: 100px; flex-shrink: 0; }
+
+/* 발신자 라디오 */
+.radio-group { display: flex; gap: 12px; }
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #a0a0b0;
+  cursor: pointer;
+}
+.radio-label input[type="radio"] { accent-color: #9d8ffc; }
+
+/* 모달 버튼 행 */
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+.modal-cancel {
+  padding: 9px 20px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 9px;
+  font-size: 14px;
+  color: #808090;
+  cursor: pointer;
+}
+.modal-cancel:hover { color: #c0c0d0; }
+.modal-submit {
+  padding: 9px 20px;
+  background: #9d8ffc;
+  border: none;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+.modal-submit:hover { background: #b0a4fd; }
+
+/* ── 태그 입력 ── */
+.tag-input-wrap {
+  min-height: 42px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(157,143,252,0.15);
+  border-radius: 9px;
+  padding: 6px 10px;
+  cursor: text;
+  transition: border-color 150ms ease;
+}
+.tag-input-wrap:focus-within { border-color: #9d8ffc; }
+.tag-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(157,143,252,0.15);
+  border: 1px solid rgba(157,143,252,0.3);
+  border-radius: 999px;
+  padding: 2px 8px 2px 10px;
+  font-size: 12px;
+  color: #c0b8ff;
+}
+.tag-pill-remove {
+  background: none;
+  border: none;
+  color: #9d8ffc;
+  cursor: pointer;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+}
+.tag-pill-remove:hover { color: rgb(248,113,113); }
+.tag-input-inner {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: #e2e2e2;
+  flex: 1;
+  min-width: 120px;
+}
+.tag-input-inner::placeholder { color: #404050; }
