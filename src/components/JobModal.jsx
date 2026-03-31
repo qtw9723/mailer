@@ -51,8 +51,8 @@ export default function JobModal({ job, onSubmit, onClose, loading }) {
                 <input type="radio" value="gmail" checked={sender === 'gmail'} onChange={() => setSender('gmail')} />
                 Gmail
               </label>
-              <label className="radio-label">
-                <input type="radio" value="ms" checked={sender === 'ms'} onChange={() => setSender('ms')} />
+              <label className="radio-label" style={{ opacity: 0.4, cursor: 'not-allowed' }}>
+                <input type="radio" value="ms" checked={sender === 'ms'} onChange={() => setSender('ms')} disabled />
                 Outlook
               </label>
             </div>
