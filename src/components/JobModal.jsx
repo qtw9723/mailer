@@ -1,6 +1,7 @@
 // src/components/JobModal.jsx
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import TagInput from './TagInput.jsx'
+import { uploadFile, deleteFile } from '../lib/storage.js'
 
 export default function JobModal({ job, onSubmit, onClose, loading }) {
   const [name, setName] = useState(job?.name ?? '')
@@ -19,13 +20,45 @@ export default function JobModal({ job, onSubmit, onClose, loading }) {
     return job.interval_minutes >= 60 && job.interval_minutes % 60 === 0 ? 'hours' : 'minutes'
   })
   const [useIndex, setUseIndex] = useState(job?.use_index ?? false)
+  const [attachments, setAttachments] = useState(job?.attachments ?? [])
+  const [folderUuid] = useState(() => job ? null : crypto.randomUUID())
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef(null)
+
+  const handleFileChange = async (e) => {
+    const files = Array.from(e.target.files)
+    e.target.value = ''
+    setUploading(true)
+    try {
+      const folder = folderUuid ?? job.id
+      const results = await Promise.all(
+        files.map(file => uploadFile(folder, file).catch(err => { alert(err.message); return null }))
+      )
+      const uploaded = results.filter(Boolean)
+      setAttachments(prev => {
+        const existingNames = new Set(prev.map(a => a.name))
+        return [...prev, ...uploaded.filter(a => !existingNames.has(a.name))]
+      })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleRemoveAttachment = async (attachment) => {
+    try {
+      await deleteFile(attachment.path)
+      setAttachments(prev => prev.filter(a => a.path !== attachment.path))
+    } catch (err) {
+      alert(err.message)
+    }
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault()
     const interval_minutes = intervalUnit === 'hours'
       ? Number(intervalValue) * 60
       : Number(intervalValue)
-    onSubmit({ name, sender, subject, body, recipients, interval_minutes, use_index: useIndex })
+    onSubmit({ name, sender, subject, body, recipients, interval_minutes, use_index: useIndex, attachments })
   }
 
   return (
@@ -83,6 +116,34 @@ export default function JobModal({ job, onSubmit, onClose, loading }) {
           <div className="form-field">
             <label className="form-label">수신자</label>
             <TagInput values={recipients} onChange={setRecipients} />
+          </div>
+
+          <div className="form-field">
+            <label className="form-label">첨부파일</label>
+            <div className="attachment-list">
+              {attachments.map(a => (
+                <div key={a.path} className="attachment-item">
+                  <span className="attachment-name">{a.name}</span>
+                  <span className="attachment-size">({(a.size / 1024 / 1024).toFixed(1)}MB)</span>
+                  <button type="button" className="attachment-remove" onClick={() => handleRemoveAttachment(a)}>×</button>
+                </div>
+              ))}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              style={{ display: 'none' }}
+              onChange={handleFileChange}
+            />
+            <button
+              type="button"
+              className="attachment-add"
+              onClick={() => fileInputRef.current.click()}
+              disabled={uploading}
+            >
+              {uploading ? '업로드 중...' : '파일 추가'}
+            </button>
           </div>
 
           <div className="form-field">
