@@ -439,3 +439,53 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 2px;
+  margin-bottom: 4px;
+}
+
+.bulk-select-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.bulk-delete-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #e53e3e;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.bulk-delete-btn:hover {
+  background: #c53030;
+}
+
+.job-card-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.job-checkbox {
+  cursor: pointer;
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.job-card-selected {
+  opacity: 0.7;
+}

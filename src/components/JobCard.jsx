@@ -15,11 +15,12 @@ function intervalLabel(minutes) {
   return `${minutes}분마다`
 }
 
-export default function JobCard({ job, onToggle, onEdit, onDelete, onDuplicate }) {
+export default function JobCard({ job, selected, onSelect, onToggle, onEdit, onDelete, onDuplicate }) {
   return (
-    <div className={`job-card${job.is_active ? ' job-card-active' : ''}`}>
+    <div className={`job-card${job.is_active ? ' job-card-active' : ''}${selected ? ' job-card-selected' : ''}`}>
       <div className="job-card-top">
-        <div>
+        <div className="job-card-left">
+          <input type="checkbox" className="job-checkbox" checked={selected} onChange={e => onSelect(e.target.checked)} />
           <div className="job-card-name">{job.name}</div>
         </div>
         <div className="job-card-actions">

@@ -1,6 +1,6 @@
 // src/App.jsx
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { getJobs, createJob, updateJob, deleteJob } from './lib/api.js'
 import JobCard from './components/JobCard.jsx'
 import JobModal from './components/JobModal.jsx'
@@ -31,6 +31,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [editJob, setEditJob] = useState(null)
+  const [selectedIds, setSelectedIds] = useState(new Set())
   const pollRef = useRef(null)
 
   const refreshJobs = useCallback(async (pw) => {
@@ -114,6 +115,12 @@ export default function App() {
     setJobs(prev => [newJob, ...prev])
   }
 
+  const handleDeleteSelected = async () => {
+    await Promise.all([...selectedIds].map(id => deleteJob(id, password)))
+    setJobs(prev => prev.filter(j => !selectedIds.has(j.id)))
+    setSelectedIds(new Set())
+  }
+
   const handleToggle = (job) => {
     handleUpdate(job.id, { is_active: !job.is_active })
   }
@@ -151,6 +158,23 @@ export default function App() {
       </header>
 
       <div className="job-list">
+        {jobs.length > 0 && (
+          <div className="bulk-bar">
+            <label className="bulk-select-all">
+              <input
+                type="checkbox"
+                checked={selectedIds.size === jobs.length}
+                onChange={e => setSelectedIds(e.target.checked ? new Set(jobs.map(j => j.id)) : new Set())}
+              />
+              전체 선택
+            </label>
+            {selectedIds.size > 0 && (
+              <button className="bulk-delete-btn" onClick={handleDeleteSelected}>
+                <Trash2 size={12} /> {selectedIds.size}개 삭제
+              </button>
+            )}
+          </div>
+        )}
         {jobs.length === 0 ? (
           <p className="job-empty">작업이 없습니다. 새 작업을 만들어보세요.</p>
         ) : (
@@ -158,6 +182,8 @@ export default function App() {
             <JobCard
               key={job.id}
               job={job}
+              selected={selectedIds.has(job.id)}
+              onSelect={checked => setSelectedIds(prev => { const s = new Set(prev); checked ? s.add(job.id) : s.delete(job.id); return s })}
               onToggle={() => handleToggle(job)}
               onEdit={() => { setEditJob(job); setShowModal(true) }}
               onDuplicate={() => handleDuplicate(job)}
