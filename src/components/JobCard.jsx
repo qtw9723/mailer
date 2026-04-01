@@ -1,5 +1,7 @@
 // src/components/JobCard.jsx
-import { Play, Square, Pencil, Trash2, Copy } from 'lucide-react'
+import { Play, Square, Pencil, Trash2, Copy, GripVertical } from 'lucide-react'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 function fmt(iso) {
   if (!iso) return '미발송'
@@ -16,10 +18,14 @@ function intervalLabel(minutes) {
 }
 
 export default function JobCard({ job, selected, onSelect, onToggle, onEdit, onDelete, onDuplicate }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }
+
   return (
-    <div className={`job-card${job.is_active ? ' job-card-active' : ''}${selected ? ' job-card-selected' : ''}`}>
+    <div ref={setNodeRef} style={style} className={`job-card${job.is_active ? ' job-card-active' : ''}${selected ? ' job-card-selected' : ''}`}>
       <div className="job-card-top">
         <div className="job-card-left">
+          <button className="drag-handle" {...attributes} {...listeners}><GripVertical size={14} /></button>
           <input type="checkbox" className="job-checkbox" checked={selected} onChange={e => onSelect(e.target.checked)} />
           <div className="job-card-name">{job.name}</div>
         </div>

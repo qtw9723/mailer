@@ -1,7 +1,9 @@
 // src/App.jsx
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
-import { getJobs, createJob, updateJob, deleteJob } from './lib/api.js'
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
+import { getJobs, createJob, updateJob, deleteJob, reorderJobs } from './lib/api.js'
 import JobCard from './components/JobCard.jsx'
 import JobModal from './components/JobModal.jsx'
 
@@ -33,11 +35,12 @@ export default function App() {
   const [editJob, setEditJob] = useState(null)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const pollRef = useRef(null)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const refreshJobs = useCallback(async (pw) => {
     try {
       const data = await getJobs(pw)
-      setJobs(data)
+      setJobs(data.slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)))
       setCookie(pw)
       return true
     } catch (e) {
@@ -115,6 +118,17 @@ export default function App() {
     setJobs(prev => [newJob, ...prev])
   }
 
+  const handleDragEnd = ({ active, over }) => {
+    if (!over || active.id === over.id) return
+    setJobs(prev => {
+      const oldIndex = prev.findIndex(j => j.id === active.id)
+      const newIndex = prev.findIndex(j => j.id === over.id)
+      const reordered = arrayMove(prev, oldIndex, newIndex)
+      reorderJobs(reordered.map(j => j.id), password)
+      return reordered
+    })
+  }
+
   const handleDeleteSelected = async () => {
     await Promise.all([...selectedIds].map(id => deleteJob(id, password)))
     setJobs(prev => prev.filter(j => !selectedIds.has(j.id)))
@@ -157,6 +171,8 @@ export default function App() {
         </button>
       </header>
 
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={jobs.map(j => j.id)} strategy={verticalListSortingStrategy}>
       <div className="job-list">
         {jobs.length > 0 && (
           <div className="bulk-bar">
@@ -192,6 +208,8 @@ export default function App() {
           ))
         )}
       </div>
+      </SortableContext>
+      </DndContext>
 
       {showModal && (
         <JobModal

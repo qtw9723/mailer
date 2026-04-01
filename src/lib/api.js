@@ -25,3 +25,5 @@ export const getJobs = (pw) => request('GET', '', null, pw)
 export const createJob = (job, pw) => request('POST', '', job, pw)
 export const updateJob = (id, patch, pw) => request('PATCH', `?id=${id}`, patch, pw)
 export const deleteJob = (id, pw) => request('DELETE', `?id=${id}`, null, pw)
+export const reorderJobs = (ids, pw) =>
+  Promise.all(ids.map((id, i) => request('PATCH', `?id=${id}`, { sort_order: i }, pw)))

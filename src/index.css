@@ -486,6 +486,19 @@ body {
   background: rgba(248,113,113,0.18);
 }
 
+.drag-handle {
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: #404050;
+  cursor: grab;
+  padding: 2px;
+  touch-action: none;
+}
+.drag-handle:hover { color: #9d8ffc; }
+.drag-handle:active { cursor: grabbing; }
+
 .job-card-left {
   display: flex;
   align-items: center;
