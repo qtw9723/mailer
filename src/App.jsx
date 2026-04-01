@@ -108,7 +108,9 @@ export default function App() {
 
   const handleDuplicate = async (job) => {
     const { name, sender, subject, body, recipients, interval_minutes, use_index, attachments } = job
-    const newJob = await createJob({ name: `${name} (복사)`, sender, subject, body, recipients, interval_minutes, use_index, attachments }, password)
+    const match = name.match(/^\[(\d+)\] (.+)$/)
+    const newName = match ? `[${Number(match[1]) + 1}] ${match[2]}` : `[0] ${name}`
+    const newJob = await createJob({ name: newName, sender, subject, body, recipients, interval_minutes, use_index, attachments }, password)
     setJobs(prev => [newJob, ...prev])
   }
 
