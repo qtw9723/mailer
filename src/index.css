@@ -388,9 +388,11 @@ body {
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: var(--bg-secondary, #f5f5f5);
-  border-radius: 6px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(157,143,252,0.12);
+  border-radius: 8px;
   font-size: 13px;
+  color: #c0c0d0;
 }
 
 .attachment-name {
@@ -401,7 +403,7 @@ body {
 }
 
 .attachment-size {
-  color: #888;
+  color: #606070;
   font-size: 12px;
   white-space: nowrap;
 }
@@ -410,33 +412,34 @@ body {
   background: none;
   border: none;
   cursor: pointer;
-  color: #999;
+  color: #505060;
   font-size: 16px;
   padding: 0 2px;
   line-height: 1;
 }
 
 .attachment-remove:hover {
-  color: #e53e3e;
+  color: rgb(248,113,113);
 }
 
 .attachment-add {
   padding: 6px 14px;
-  border: 1px dashed #ccc;
+  border: 1px dashed rgba(157,143,252,0.25);
   background: none;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 13px;
-  color: #555;
+  color: #606070;
+  transition: border-color 150ms ease, color 150ms ease;
 }
 
 .attachment-add:hover:not(:disabled) {
-  border-color: #888;
-  color: #222;
+  border-color: rgba(157,143,252,0.5);
+  color: #9d8ffc;
 }
 
 .attachment-add:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
@@ -444,8 +447,8 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 6px 2px;
-  margin-bottom: 4px;
+  padding: 4px 2px;
+  margin-bottom: -2px;
 }
 
 .bulk-select-all {
@@ -453,6 +456,14 @@ body {
   align-items: center;
   gap: 6px;
   font-size: 13px;
+  color: #606070;
+  cursor: pointer;
+}
+
+.bulk-select-all input[type="checkbox"] {
+  accent-color: #9d8ffc;
+  width: 14px;
+  height: 14px;
   cursor: pointer;
 }
 
@@ -460,17 +471,19 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
-  background: #e53e3e;
-  color: white;
-  border: none;
-  border-radius: 6px;
+  padding: 4px 12px;
+  background: rgba(248,113,113,0.1);
+  border: 1px solid rgba(248,113,113,0.25);
+  border-radius: 8px;
   font-size: 12px;
+  font-weight: 600;
+  color: rgb(248,113,113);
   cursor: pointer;
+  transition: background 150ms ease;
 }
 
 .bulk-delete-btn:hover {
-  background: #c53030;
+  background: rgba(248,113,113,0.18);
 }
 
 .job-card-left {
@@ -480,12 +493,14 @@ body {
 }
 
 .job-checkbox {
+  accent-color: #9d8ffc;
   cursor: pointer;
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   flex-shrink: 0;
 }
 
 .job-card-selected {
-  opacity: 0.7;
+  border-color: rgba(248,113,113,0.3) !important;
+  background: rgba(248,113,113,0.03) !important;
 }
