@@ -16,7 +16,7 @@ export function validateFile(file) {
 
 export async function uploadFile(folderUuid, file) {
   validateFile(file)
-  const path = `${folderUuid}/${file.name}`
+  const path = `${folderUuid}/${encodeURIComponent(file.name)}`
   const { error } = await supabase.storage
     .from('attachments')
     .upload(path, file, { upsert: true })
