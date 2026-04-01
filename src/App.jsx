@@ -106,6 +106,12 @@ export default function App() {
     setJobs(prev => prev.filter(j => j.id !== id))
   }
 
+  const handleDuplicate = async (job) => {
+    const { name, sender, subject, body, recipients, interval_minutes, use_index, attachments } = job
+    const newJob = await createJob({ name: `${name} (복사)`, sender, subject, body, recipients, interval_minutes, use_index, attachments }, password)
+    setJobs(prev => [newJob, ...prev])
+  }
+
   const handleToggle = (job) => {
     handleUpdate(job.id, { is_active: !job.is_active })
   }
@@ -152,6 +158,7 @@ export default function App() {
               job={job}
               onToggle={() => handleToggle(job)}
               onEdit={() => { setEditJob(job); setShowModal(true) }}
+              onDuplicate={() => handleDuplicate(job)}
               onDelete={() => handleDelete(job.id)}
             />
           ))

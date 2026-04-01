@@ -1,5 +1,5 @@
 // src/components/JobCard.jsx
-import { Play, Square, Pencil, Trash2 } from 'lucide-react'
+import { Play, Square, Pencil, Trash2, Copy } from 'lucide-react'
 
 function fmt(iso) {
   if (!iso) return '미발송'
@@ -15,7 +15,7 @@ function intervalLabel(minutes) {
   return `${minutes}분마다`
 }
 
-export default function JobCard({ job, onToggle, onEdit, onDelete }) {
+export default function JobCard({ job, onToggle, onEdit, onDelete, onDuplicate }) {
   return (
     <div className={`job-card${job.is_active ? ' job-card-active' : ''}`}>
       <div className="job-card-top">
@@ -31,6 +31,9 @@ export default function JobCard({ job, onToggle, onEdit, onDelete }) {
           </button>
           <button className="btn btn-edit" onClick={onEdit}>
             <Pencil size={11} /> 수정
+          </button>
+          <button className="btn btn-edit" onClick={onDuplicate}>
+            <Copy size={11} />
           </button>
           <button className="btn btn-delete" onClick={onDelete}>
             <Trash2 size={11} />
