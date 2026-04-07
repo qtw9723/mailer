@@ -53,6 +53,12 @@ export default function JobModal({ job, onSubmit, onClose, loading }) {
     }
   }
 
+  const handleClose = () => {
+    if (window.confirm('작성 중인 내용이 사라집니다. 취소하시겠습니까?')) {
+      onClose()
+    }
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault()
     const interval_minutes = intervalUnit === 'hours'
@@ -62,7 +68,7 @@ export default function JobModal({ job, onSubmit, onClose, loading }) {
   }
 
   return (
-    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+    <div className="modal-overlay">
       <div className="modal">
         <h2 className="modal-title">{job ? '작업 수정' : '새 작업'}</h2>
         <form onSubmit={handleSubmit}>
@@ -180,7 +186,7 @@ export default function JobModal({ job, onSubmit, onClose, loading }) {
           </div>
 
           <div className="modal-actions">
-            <button type="button" className="modal-cancel" onClick={onClose}>취소</button>
+            <button type="button" className="modal-cancel" onClick={handleClose}>취소</button>
             <button
               type="submit"
               className="modal-submit"
