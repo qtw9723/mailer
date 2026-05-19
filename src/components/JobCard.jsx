@@ -1,5 +1,6 @@
 // src/components/JobCard.jsx
-import { Play, Square, Pencil, Trash2, Copy, GripVertical } from 'lucide-react'
+import { useState } from 'react'
+import { Play, Square, Pencil, Trash2, Copy, GripVertical, ChevronDown, ChevronUp } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
@@ -18,6 +19,7 @@ function intervalLabel(minutes) {
 }
 
 export default function JobCard({ job, selected, onSelect, onToggle, onEdit, onDelete, onDuplicate }) {
+  const [recipientsOpen, setRecipientsOpen] = useState(false)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }
 
@@ -54,7 +56,9 @@ export default function JobCard({ job, selected, onSelect, onToggle, onEdit, onD
             {job.sender === 'gmail' ? 'Gmail' : 'Outlook'}
           </span>
         </span>
-        <span className="job-meta-item">수신자 {job.recipients.length}명</span>
+        <button className="recipient-toggle" onClick={() => setRecipientsOpen(o => !o)}>
+          수신자 {job.recipients.length}명 {recipientsOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+        </button>
         <span className="job-meta-item">{intervalLabel(job.interval_minutes)}</span>
         <span className="job-meta-item">
           <span className={`job-status-dot${job.is_active ? ' job-status-dot-active' : ''}`} />
@@ -64,6 +68,13 @@ export default function JobCard({ job, selected, onSelect, onToggle, onEdit, onD
         <span className="job-meta-item">누적 {job.send_count}회</span>
         <span className="job-meta-item">마지막: {fmt(job.last_sent_at)}</span>
       </div>
+      {recipientsOpen && (
+        <div className="recipient-list">
+          {job.recipients.map(email => (
+            <div key={email} className="recipient-list-item">{email}</div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
