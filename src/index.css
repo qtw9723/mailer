@@ -223,6 +223,12 @@ body {
   color: #808090;
 }
 .btn-edit:hover { color: #c0c0d0; background: rgba(255,255,255,0.07); }
+.btn-reset {
+  background: transparent;
+  border-color: transparent;
+  color: #505060;
+}
+.btn-reset:hover { color: #9d8ffc; background: rgba(157,143,252,0.1); }
 .btn-delete {
   background: transparent;
   border-color: transparent;

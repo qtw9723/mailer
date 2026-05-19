@@ -1,6 +1,6 @@
 // src/components/JobCard.jsx
 import { useState } from 'react'
-import { Play, Square, Pencil, Trash2, Copy, GripVertical, ChevronDown, ChevronUp } from 'lucide-react'
+import { Play, Square, Pencil, Trash2, Copy, GripVertical, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
@@ -18,7 +18,7 @@ function intervalLabel(minutes) {
   return `${minutes}분마다`
 }
 
-export default function JobCard({ job, selected, onSelect, onToggle, onEdit, onDelete, onDuplicate }) {
+export default function JobCard({ job, selected, onSelect, onToggle, onEdit, onDelete, onDuplicate, onResetCount }) {
   const [recipientsOpen, setRecipientsOpen] = useState(false)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }
@@ -44,6 +44,11 @@ export default function JobCard({ job, selected, onSelect, onToggle, onEdit, onD
           <button className="btn btn-edit" onClick={onDuplicate}>
             <Copy size={11} />
           </button>
+          {job.use_index && (
+            <button className="btn btn-reset" onClick={onResetCount} title="순번 초기화">
+              <RotateCcw size={11} />
+            </button>
+          )}
           <button className="btn btn-delete" onClick={onDelete}>
             <Trash2 size={11} />
           </button>

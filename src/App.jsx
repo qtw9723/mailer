@@ -110,6 +110,12 @@ export default function App() {
     setJobs(prev => prev.filter(j => j.id !== id))
   }
 
+  const handleResetCount = async (id) => {
+    if (!confirm('순번을 0으로 초기화할까요?')) return
+    const job = await updateJob(id, { send_count: 0 }, password)
+    setJobs(prev => prev.map(j => j.id === id ? job : j))
+  }
+
   const handleDuplicate = async (job) => {
     const { name, sender, subject, body, recipients, interval_minutes, use_index, attachments } = job
     const match = name.match(/^\[(\d+)\] (.+)$/)
@@ -204,6 +210,7 @@ export default function App() {
               onEdit={() => { setEditJob(job); setShowModal(true) }}
               onDuplicate={() => handleDuplicate(job)}
               onDelete={() => handleDelete(job.id)}
+              onResetCount={() => handleResetCount(job.id)}
             />
           ))
         )}
