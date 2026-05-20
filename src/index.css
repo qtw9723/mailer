@@ -563,3 +563,65 @@ body {
   opacity: 0.5;
   flex-shrink: 0;
 }
+
+/* ── 탭 네비게이션 ── */
+.app-header { padding: 0 32px; height: 56px; }
+.nav-tabs { display: flex; }
+.nav-tab {
+  padding: 0 16px; height: 56px;
+  display: flex; align-items: center;
+  font-size: 13px; font-weight: 500; color: #606070;
+  background: none; border: none; border-bottom: 2px solid transparent;
+  cursor: pointer; transition: color 150ms, border-color 150ms;
+}
+.nav-tab:hover { color: #a0a0b0; }
+.nav-tab.active { color: #9d8ffc; border-bottom-color: #9d8ffc; }
+
+/* ── 발신 계정 페이지 ── */
+.sender-page { max-width: 860px; margin: 28px auto; padding: 0 24px; }
+.sender-list { display: flex; flex-direction: column; gap: 10px; }
+.sender-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(157,143,252,0.12);
+  border-radius: 12px; padding: 16px 20px;
+  display: flex; align-items: center; gap: 14px;
+  transition: border-color 150ms;
+}
+.sender-card:hover { border-color: rgba(157,143,252,0.25); }
+.sender-icon {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(234,67,53,0.1);
+  display: flex; align-items: center; justify-content: center;
+  color: #f87171; font-size: 14px; font-weight: 700; flex-shrink: 0;
+}
+.sender-info { flex: 1; min-width: 0; }
+.sender-email { font-size: 14px; font-weight: 600; color: #e0e0f0; }
+.sender-meta { font-size: 12px; color: #606070; margin-top: 2px; }
+
+/* ── 발신자 셀렉트 ── */
+.sender-select-wrap { position: relative; }
+.sender-select {
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(157,143,252,0.15);
+  border-radius: 9px; padding: 9px 36px 9px 12px;
+  font-size: 14px; color: #e2e2e2;
+  appearance: none; cursor: pointer;
+  font-family: inherit; outline: none;
+}
+.sender-select:focus { border-color: #9d8ffc; }
+.sender-select-arrow {
+  position: absolute; right: 12px; top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none; color: #606070; font-size: 11px;
+}
+
+/* ── 앱 비밀번호 입력 ── */
+.pw-input-wrap { position: relative; }
+.pw-toggle-btn {
+  position: absolute; right: 10px; top: 50%;
+  transform: translateY(-50%);
+  background: none; border: none; cursor: pointer;
+  color: #606070; font-size: 11px; font-weight: 600; padding: 2px 6px;
+}
+.pw-toggle-btn:hover { color: #9d8ffc; }

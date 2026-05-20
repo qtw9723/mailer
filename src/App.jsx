@@ -3,9 +3,11 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
-import { getJobs, createJob, updateJob, deleteJob, reorderJobs } from './lib/api.js'
+import { getJobs, createJob, updateJob, deleteJob, reorderJobs, getSenders, createSender, deleteSender } from './lib/api.js'
 import JobCard from './components/JobCard.jsx'
 import JobModal from './components/JobModal.jsx'
+import SenderPage from './components/SenderPage.jsx'
+import SenderModal from './components/SenderModal.jsx'
 
 const COOKIE_NAME = 'mailer-password'
 const COOKIE_MINUTES = 10
@@ -34,6 +36,9 @@ export default function App() {
   const [showModal, setShowModal] = useState(false)
   const [editJob, setEditJob] = useState(null)
   const [selectedIds, setSelectedIds] = useState(new Set())
+  const [page, setPage] = useState('jobs')
+  const [senders, setSenders] = useState([])
+  const [showSenderModal, setShowSenderModal] = useState(false)
   const pollRef = useRef(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -58,6 +63,15 @@ export default function App() {
     pollRef.current = setInterval(() => refreshJobs(pw), 60_000)
   }, [refreshJobs])
 
+  const loadSenders = useCallback(async (pw) => {
+    try {
+      const data = await getSenders(pw)
+      setSenders(data)
+    } catch (e) {
+      console.error('senders load failed:', e)
+    }
+  }, [])
+
   useEffect(() => {
     const pw = getCookie()
     if (pw) {
@@ -65,6 +79,7 @@ export default function App() {
         if (ok) {
           setAuthenticated(true)
           startPolling(pw)
+          loadSenders(pw)
         }
       })
     }
@@ -81,6 +96,7 @@ export default function App() {
       setAuthenticated(true)
       setCookie(pwInput)
       startPolling(pwInput)
+      loadSenders(pwInput)
     } catch (e) {
       if (e.message === 'UNAUTHORIZED') setPwError('비밀번호가 틀렸습니다.')
       else setPwError('연결 오류가 발생했습니다.')
@@ -141,6 +157,18 @@ export default function App() {
     setSelectedIds(new Set())
   }
 
+  const handleCreateSender = async (data) => {
+    const sender = await createSender(data, password)
+    setSenders(prev => [...prev, sender])
+    setShowSenderModal(false)
+  }
+
+  const handleDeleteSender = async (id) => {
+    if (!confirm('발신 계정을 삭제할까요?')) return
+    await deleteSender(id, password)
+    setSenders(prev => prev.filter(s => s.id !== id))
+  }
+
   const handleToggle = (job) => {
     handleUpdate(job.id, { is_active: !job.is_active })
   }
@@ -171,59 +199,89 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <span className="app-title">Mailer</span>
-        <button className="app-new-btn" onClick={() => { setEditJob(null); setShowModal(true) }}>
-          <Plus size={14} /> 새 작업
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+          <span className="app-title">Mailer</span>
+          <nav className="nav-tabs">
+            <button className={`nav-tab${page === 'jobs' ? ' active' : ''}`} onClick={() => setPage('jobs')}>스케줄</button>
+            <button className={`nav-tab${page === 'senders' ? ' active' : ''}`} onClick={() => setPage('senders')}>발신 계정</button>
+          </nav>
+        </div>
+        {page === 'jobs' ? (
+          <button className="app-new-btn" onClick={() => { setEditJob(null); setShowModal(true) }}>
+            <Plus size={14} /> 새 작업
+          </button>
+        ) : (
+          <button className="app-new-btn" onClick={() => setShowSenderModal(true)}>
+            <Plus size={14} /> 계정 추가
+          </button>
+        )}
       </header>
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <SortableContext items={jobs.map(j => j.id)} strategy={verticalListSortingStrategy}>
-      <div className="job-list">
-        {jobs.length > 0 && (
-          <div className="bulk-bar">
-            <label className="bulk-select-all">
-              <input
-                type="checkbox"
-                checked={selectedIds.size === jobs.length}
-                onChange={e => setSelectedIds(e.target.checked ? new Set(jobs.map(j => j.id)) : new Set())}
-              />
-              전체 선택
-            </label>
-            {selectedIds.size > 0 && (
-              <button className="bulk-delete-btn" onClick={handleDeleteSelected}>
-                <Trash2 size={12} /> {selectedIds.size}개 삭제
-              </button>
+      {page === 'jobs' ? (
+        <>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={jobs.map(j => j.id)} strategy={verticalListSortingStrategy}>
+          <div className="job-list">
+            {jobs.length > 0 && (
+              <div className="bulk-bar">
+                <label className="bulk-select-all">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.size === jobs.length}
+                    onChange={e => setSelectedIds(e.target.checked ? new Set(jobs.map(j => j.id)) : new Set())}
+                  />
+                  전체 선택
+                </label>
+                {selectedIds.size > 0 && (
+                  <button className="bulk-delete-btn" onClick={handleDeleteSelected}>
+                    <Trash2 size={12} /> {selectedIds.size}개 삭제
+                  </button>
+                )}
+              </div>
+            )}
+            {jobs.length === 0 ? (
+              <p className="job-empty">작업이 없습니다. 새 작업을 만들어보세요.</p>
+            ) : (
+              jobs.map(job => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  senders={senders}
+                  selected={selectedIds.has(job.id)}
+                  onSelect={checked => setSelectedIds(prev => { const s = new Set(prev); checked ? s.add(job.id) : s.delete(job.id); return s })}
+                  onToggle={() => handleToggle(job)}
+                  onEdit={() => { setEditJob(job); setShowModal(true) }}
+                  onDuplicate={() => handleDuplicate(job)}
+                  onDelete={() => handleDelete(job.id)}
+                  onResetCount={() => handleResetCount(job.id)}
+                />
+              ))
             )}
           </div>
-        )}
-        {jobs.length === 0 ? (
-          <p className="job-empty">작업이 없습니다. 새 작업을 만들어보세요.</p>
-        ) : (
-          jobs.map(job => (
-            <JobCard
-              key={job.id}
-              job={job}
-              selected={selectedIds.has(job.id)}
-              onSelect={checked => setSelectedIds(prev => { const s = new Set(prev); checked ? s.add(job.id) : s.delete(job.id); return s })}
-              onToggle={() => handleToggle(job)}
-              onEdit={() => { setEditJob(job); setShowModal(true) }}
-              onDuplicate={() => handleDuplicate(job)}
-              onDelete={() => handleDelete(job.id)}
-              onResetCount={() => handleResetCount(job.id)}
-            />
-          ))
-        )}
-      </div>
-      </SortableContext>
-      </DndContext>
+          </SortableContext>
+          </DndContext>
 
-      {showModal && (
-        <JobModal
-          job={editJob}
-          onSubmit={editJob ? (data) => handleUpdate(editJob.id, data) : handleCreate}
-          onClose={() => { setShowModal(false); setEditJob(null) }}
-          loading={loading}
+          {showModal && (
+            <JobModal
+              job={editJob}
+              senders={senders}
+              onSubmit={editJob ? (data) => handleUpdate(editJob.id, data) : handleCreate}
+              onClose={() => { setShowModal(false); setEditJob(null) }}
+              loading={loading}
+            />
+          )}
+        </>
+      ) : (
+        <SenderPage
+          senders={senders}
+          onDelete={handleDeleteSender}
+        />
+      )}
+
+      {showSenderModal && (
+        <SenderModal
+          onSubmit={handleCreateSender}
+          onClose={() => setShowSenderModal(false)}
         />
       )}
     </div>

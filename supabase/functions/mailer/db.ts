@@ -8,12 +8,13 @@ export interface MailJob {
   body: string
   recipients: string[]
   sender: "gmail" | "ms"
+  sender_account_id: string | null
   interval_minutes: number
   is_active: boolean
   last_sent_at: string | null
   send_count: number
-  use_index: boolean   
-  attachments: { path: string; name: string; size:number }[]  // 추가  
+  use_index: boolean
+  attachments: { path: string; name: string; size:number }[]  // 추가
   created_at: string
 }
 
@@ -89,14 +90,60 @@ export async function markSent(id: string, currentCount: number): Promise<void> 
   if (error) throw error
 }
 
-export async function getJob(id: string):           
-  Promise<MailJob | null> {                         
-    const db = getDb()                                
-    const { data, error } = await db       
-      .from("mail_jobs")                              
-      .select("*")                                  
-      .eq("id", id)                                   
-      .single()    
-    if (error) return null                            
-    return data                                     
-  }              
+export async function getJob(id: string): Promise<MailJob | null> {
+  const db = getDb()
+  const { data, error } = await db
+    .from("mail_jobs")
+    .select("*")
+    .eq("id", id)
+    .single()
+  if (error) return null
+  return data
+}
+
+export interface SenderAccount {
+  id: string
+  email: string
+  app_password: string
+  created_at: string
+}
+
+export async function getSenderAccounts(): Promise<Omit<SenderAccount, 'app_password'>[]> {
+  const db = getDb()
+  const { data, error } = await db
+    .from("sender_accounts")
+    .select("id, email, created_at")
+    .order("created_at", { ascending: true })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function createSenderAccount(
+  account: Pick<SenderAccount, 'email' | 'app_password'>
+): Promise<Omit<SenderAccount, 'app_password'>> {
+  const db = getDb()
+  const { data, error } = await db
+    .from("sender_accounts")
+    .insert(account)
+    .select("id, email, created_at")
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteSenderAccount(id: string): Promise<void> {
+  const db = getDb()
+  const { error } = await db.from("sender_accounts").delete().eq("id", id)
+  if (error) throw error
+}
+
+export async function getSenderAccountById(id: string): Promise<SenderAccount | null> {
+  const db = getDb()
+  const { data, error } = await db
+    .from("sender_accounts")
+    .select("*")
+    .eq("id", id)
+    .single()
+  if (error) return null
+  return data
+}

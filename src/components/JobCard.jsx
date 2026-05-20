@@ -18,7 +18,7 @@ function intervalLabel(minutes) {
   return `${minutes}분마다`
 }
 
-export default function JobCard({ job, selected, onSelect, onToggle, onEdit, onDelete, onDuplicate, onResetCount }) {
+export default function JobCard({ job, selected, onSelect, onToggle, onEdit, onDelete, onDuplicate, onResetCount, senders }) {
   const [recipientsOpen, setRecipientsOpen] = useState(false)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }
@@ -57,9 +57,15 @@ export default function JobCard({ job, selected, onSelect, onToggle, onEdit, onD
 
       <div className="job-card-meta">
         <span className="job-meta-item">
-          <span className={`job-badge ${job.sender === 'gmail' ? 'job-badge-gmail' : 'job-badge-ms'}`}>
-            {job.sender === 'gmail' ? 'Gmail' : 'Outlook'}
-          </span>
+          {job.sender_account_id && senders ? (
+            <span style={{ color: '#a0a0b0', fontSize: '12px' }}>
+              {senders.find(s => s.id === job.sender_account_id)?.email ?? 'Gmail'}
+            </span>
+          ) : (
+            <span className={`job-badge ${job.sender === 'gmail' ? 'job-badge-gmail' : 'job-badge-ms'}`}>
+              {job.sender === 'gmail' ? 'Gmail' : 'Outlook'}
+            </span>
+          )}
         </span>
         <button className="recipient-toggle" onClick={() => setRecipientsOpen(o => !o)}>
           수신자 {job.recipients.length}명 {recipientsOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}

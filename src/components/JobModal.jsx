@@ -3,9 +3,9 @@ import { useState, useRef } from 'react'
 import TagInput from './TagInput.jsx'
 import { uploadFile, deleteFile } from '../lib/storage.js'
 
-export default function JobModal({ job, onSubmit, onClose, loading }) {
+export default function JobModal({ job, onSubmit, onClose, loading, senders = [] }) {
   const [name, setName] = useState(job?.name ?? '')
-  const [sender, setSender] = useState(job?.sender ?? 'gmail')
+  const [senderAccountId, setSenderAccountId] = useState(job?.sender_account_id ?? '')
   const [subject, setSubject] = useState(job?.subject ?? '')
   const [body, setBody] = useState(job?.body ?? '')
   const [recipients, setRecipients] = useState(job?.recipients ?? [])
@@ -64,7 +64,7 @@ export default function JobModal({ job, onSubmit, onClose, loading }) {
     const interval_minutes = intervalUnit === 'hours'
       ? Number(intervalValue) * 60
       : Number(intervalValue)
-    onSubmit({ name, sender, subject, body, recipients, interval_minutes, use_index: useIndex, attachments })
+    onSubmit({ name, sender: 'gmail', sender_account_id: senderAccountId || null, subject, body, recipients, interval_minutes, use_index: useIndex, attachments })
   }
 
   return (
@@ -84,17 +84,27 @@ export default function JobModal({ job, onSubmit, onClose, loading }) {
           </div>
 
           <div className="form-field">
-            <label className="form-label">발신자</label>
-            <div className="radio-group">
-              <label className="radio-label">
-                <input type="radio" value="gmail" checked={sender === 'gmail'} onChange={() => setSender('gmail')} />
-                Gmail
-              </label>
-              <label className="radio-label" style={{ opacity: 0.4, cursor: 'not-allowed' }}>
-                <input type="radio" value="ms" checked={sender === 'ms'} onChange={() => setSender('ms')} disabled />
-                Outlook
-              </label>
-            </div>
+            <label className="form-label">발신 계정</label>
+            {senders.length === 0 ? (
+              <p className="form-hint" style={{ color: '#f87171' }}>
+                등록된 발신 계정이 없습니다. 발신 계정 탭에서 먼저 추가해주세요.
+              </p>
+            ) : (
+              <div className="sender-select-wrap">
+                <select
+                  className="sender-select"
+                  value={senderAccountId}
+                  onChange={e => setSenderAccountId(e.target.value)}
+                  required
+                >
+                  <option value="">계정 선택</option>
+                  {senders.map(s => (
+                    <option key={s.id} value={s.id}>{s.email}</option>
+                  ))}
+                </select>
+                <span className="sender-select-arrow">▾</span>
+              </div>
+            )}
           </div>
 
           <div className="form-field">

@@ -27,3 +27,7 @@ export const updateJob = (id, patch, pw) => request('PATCH', `?id=${id}`, patch,
 export const deleteJob = (id, pw) => request('DELETE', `?id=${id}`, null, pw)
 export const reorderJobs = (ids, pw) =>
   Promise.all(ids.map((id, i) => request('PATCH', `?id=${id}`, { sort_order: i }, pw)))
+
+export const getSenders = (pw) => request('GET', '?resource=senders', null, pw)
+export const createSender = (data, pw) => request('POST', '?resource=senders', data, pw)
+export const deleteSender = (id, pw) => request('DELETE', `?resource=senders&id=${id}`, null, pw)

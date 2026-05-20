@@ -9,7 +9,9 @@ interface Attachment {
 }
 
 interface SendOptions {
-  sender: "gmail" | "ms"
+  sender?: "gmail" | "ms"
+  senderEmail?: string
+  senderPassword?: string
   to: string
   subject: string
   body: string
@@ -28,9 +30,9 @@ async function fetchAttachment(path: string): Promise<{ content: Uint8Array; con
 }
 
 export async function sendMail(opts: SendOptions): Promise<void> {
-  const isGmail = opts.sender === "gmail"
-  const user = isGmail ? Deno.env.get("GMAIL_USER")! : Deno.env.get("MS_USER")!
-  const password = isGmail ? Deno.env.get("GMAIL_APP_PASSWORD")! : Deno.env.get("MS_APP_PASSWORD")!
+  const isGmail = opts.senderEmail ? true : opts.sender === "gmail"
+  const user = opts.senderEmail ?? (isGmail ? Deno.env.get("GMAIL_USER")! : Deno.env.get("MS_USER")!)
+  const password = opts.senderPassword ?? (isGmail ? Deno.env.get("GMAIL_APP_PASSWORD")! : Deno.env.get("MS_APP_PASSWORD")!)
 
   const transporter = nodemailer.createTransport({
     host: isGmail ? "smtp.gmail.com" : "smtp-mail.outlook.com",
