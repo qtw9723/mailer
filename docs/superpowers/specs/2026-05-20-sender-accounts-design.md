@@ -2,7 +2,7 @@
 
 ## 개요
 
-Gmail 계정(이메일 + 앱 비밀번호)을 DB에 등록해두고, 스케줄 생성/수정 시 발신 계정을 드롭다운으로 선택할 수 있도록 한다. 현재 `sender` 필드(enum: "gmail" | "ms")를 `sender_account_id` FK로 교체한다.
+Gmail 계정(이메일 + 앱 비밀번호)을 DB에 등록해두고, 스케줄 생성/수정 시 발신 계정을 드롭다운으로 선택할 수 있도록 한다. **기존 `sender` enum(gmail/ms) + 환경변수 방식은 그대로 유지**하며, `sender_account_id`가 설정된 경우에만 DB 자격증명을 우선 사용한다.
 
 ---
 
@@ -20,9 +20,9 @@ Gmail 계정(이메일 + 앱 비밀번호)을 DB에 등록해두고, 스케줄 �
 ### `mail_jobs` 테이블 변경
 
 - `sender_account_id` uuid FK 추가 (`sender_accounts.id` 참조, nullable)
-- `sender` 컬럼은 그대로 유지 (삭제하지 않음 — 이번 범위 외)
+- `sender` 컬럼은 그대로 유지 (기존 동작 보존)
 
-기존 job의 `sender_account_id`는 null로 시작한다. tick 핸들러는 `sender_account_id`가 null인 job을 건너뛰고 오류 로그를 남긴다. 사용자가 각 job을 수정해 발신 계정을 선택하면 정상 동작한다.
+기존 job의 `sender_account_id`는 null — 기존 `sender` enum + 환경변수 방식으로 계속 동작한다.
 
 ---
 
@@ -36,14 +36,21 @@ Gmail 계정(이메일 + 앱 비밀번호)을 DB에 등록해두고, 스케줄 �
 | POST | `?resource=senders` | 계정 추가 |
 | DELETE | `?resource=senders&id=` | 계정 삭제 |
 
-- GET 응답에서 `app_password`는 `"••••••••"`로 마스킹해서 반환 (프론트에 평문 노출 안 함)
-- tick 핸들러: `job.sender_account_id`로 `sender_accounts`에서 자격증명 조회 후 nodemailer에 전달
+- GET 응답에서 `app_password`는 `"••••••••"`로 마스킹 반환
+- 기존 CRUD 엔드포인트(`?id=` 방식) 그대로 유지
+
+### tick 핸들러 변경
+
+```
+sender_account_id 있음 → DB에서 email + app_password 조회 → nodemailer 실행
+sender_account_id 없음 → 기존 sender enum + 환경변수 방식 (변경 없음)
+```
 
 ### `db.ts` 변경
 
-- `getSenderAccounts()`, `createSenderAccount()`, `deleteSenderAccount()` 함수 추가
-- `MailJob` 인터페이스: `sender` → `sender_account_id: string`
-- `getDueJobs()`: sender_accounts JOIN해서 자격증명 포함 반환
+- `getSenderAccounts()`, `createSenderAccount()`, `deleteSenderAccount()` 추가
+- `getSenderAccountById(id)` 추가 (tick에서 자격증명 조회용)
+- `MailJob` 인터페이스에 `sender_account_id: string | null` 추가 (기존 `sender` 유지)
 
 ---
 
@@ -58,6 +65,7 @@ Gmail 계정(이메일 + 앱 비밀번호)을 DB에 등록해두고, 스케줄 �
 
 - 등록된 계정 카드 리스트 (이메일, 앱 비밀번호 마스킹)
 - "계정 추가" 버튼 → `SenderModal.jsx` 열기
+- 계정 삭제 버튼
 
 ### 신규 컴포넌트: `SenderModal.jsx`
 
@@ -71,12 +79,13 @@ Gmail 계정(이메일 + 앱 비밀번호)을 DB에 등록해두고, 스케줄 �
 
 ### `JobModal.jsx` 변경
 
-- 발신자 라디오(`gmail` / `ms`) → 등록 계정 드롭다운
-- 드롭다운 옵션: `{id, email}` 리스트
+- 기존 발신자 라디오(`gmail` / `ms`) 아래에 "등록된 계정으로 발송" 선택 추가
+- 등록된 계정이 있을 때 드롭다운 표시 (`sender_account_id` 저장)
+- 선택 안 하면 기존 방식 그대로
 
 ### `JobCard.jsx` 변경
 
-- `job-badge-gmail` 배지 → 실제 이메일 주소 표시
+- `sender_account_id`가 있으면 해당 이메일 주소 표시, 없으면 기존 Gmail/Outlook 배지 표시
 
 ---
 
@@ -84,14 +93,14 @@ Gmail 계정(이메일 + 앱 비밀번호)을 DB에 등록해두고, 스케줄 �
 
 ```
 [SenderPage] → createSender → POST ?resource=senders → DB insert
-[JobModal]   → 드롭다운에 getSenders 결과 → sender_account_id 저장
-[tick]       → getDueJobs (sender_accounts JOIN) → nodemailer(email, app_password)
+[JobModal]   → getSenders 드롭다운 → sender_account_id 선택 저장 (선택사항)
+[tick]       → job.sender_account_id 있으면 DB 계정 사용, 없으면 기존 env var
 ```
 
 ---
 
-## 범위 외 (이번 구현에 포함하지 않음)
+## 범위 외
 
-- Outlook(MS) 계정 지원 — 향후 추가 가능하도록 `sender_accounts`에 `provider` 컬럼 예약만
+- Outlook(MS) 계정 지원
 - Supabase Vault 암호화
 - 계정별 발송 통계
