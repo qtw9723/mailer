@@ -25,6 +25,26 @@ export default function JobModal({ job, onSubmit, onClose, loading, senders = []
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef(null)
 
+  const initialRef = useRef({
+    name: job?.name ?? '',
+    senderAccountId: job?.sender_account_id ?? '',
+    subject: job?.subject ?? '',
+    body: job?.body ?? '',
+    recipients: JSON.stringify(job?.recipients ?? []),
+    intervalValue: (() => {
+      if (!job) return 60
+      return job.interval_minutes >= 60 && job.interval_minutes % 60 === 0
+        ? job.interval_minutes / 60
+        : job.interval_minutes
+    })(),
+    intervalUnit: (() => {
+      if (!job) return 'hours'
+      return job.interval_minutes >= 60 && job.interval_minutes % 60 === 0 ? 'hours' : 'minutes'
+    })(),
+    useIndex: job?.use_index ?? false,
+    attachments: JSON.stringify(job?.attachments ?? []),
+  })
+
   const handleFileChange = async (e) => {
     const files = Array.from(e.target.files)
     e.target.value = ''
@@ -53,10 +73,24 @@ export default function JobModal({ job, onSubmit, onClose, loading, senders = []
     }
   }
 
+  const isDirty = () => {
+    const init = initialRef.current
+    return (
+      name !== init.name ||
+      senderAccountId !== init.senderAccountId ||
+      subject !== init.subject ||
+      body !== init.body ||
+      JSON.stringify(recipients) !== init.recipients ||
+      Number(intervalValue) !== Number(init.intervalValue) ||
+      intervalUnit !== init.intervalUnit ||
+      useIndex !== init.useIndex ||
+      JSON.stringify(attachments) !== init.attachments
+    )
+  }
+
   const handleClose = () => {
-    if (window.confirm('작성 중인 내용이 사라집니다. 취소하시겠습니까?')) {
-      onClose()
-    }
+    if (isDirty() && !window.confirm('작성 중인 내용이 사라집니다. 취소하시겠습니까?')) return
+    onClose()
   }
 
   const handleSubmit = (e) => {
