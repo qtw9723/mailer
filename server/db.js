@@ -6,4 +6,6 @@ const pool = new pg.Pool({
   ssl: { rejectUnauthorized: false },
 })
 
+pool.on('error', (err) => console.error('pg pool error', err))
+
 export default pool
