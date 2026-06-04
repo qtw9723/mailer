@@ -1,11 +1,8 @@
-// server/db.js
-import pg from 'pg'
+import { createClient } from '@supabase/supabase-js'
 
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-})
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+)
 
-pool.on('error', (err) => console.error('pg pool error', err))
-
-export default pool
+export default supabase

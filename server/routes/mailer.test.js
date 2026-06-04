@@ -3,16 +3,33 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import request from 'supertest'
 import express from 'express'
 
-// DB 모킹
+// Supabase 클라이언트 모킹 — from()이 체이닝 빌더를 반환
+const mockFrom = vi.hoisted(() => vi.fn())
+const mockStorageFrom = vi.hoisted(() => vi.fn())
+
 vi.mock('../db.js', () => ({
   default: {
-    query: vi.fn(),
+    from: mockFrom,
+    storage: { from: mockStorageFrom },
   },
 }))
 
-import db from '../db.js'
+// 체이닝 빌더 헬퍼: 결과값을 지정하면 then/single 모두 해당 값으로 resolve
+function mockQuery(result) {
+  const p = Promise.resolve(result)
+  const chain = {
+    select: vi.fn().mockReturnThis(),
+    insert: vi.fn().mockReturnThis(),
+    update: vi.fn().mockReturnThis(),
+    delete: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    single: vi.fn().mockResolvedValue(result),
+    then: (resolve, reject) => p.then(resolve, reject),
+  }
+  return chain
+}
 
-// 라우터만 테스트 — smtp는 모킹
 vi.mock('../smtp.js', () => ({ sendMail: vi.fn() }))
 
 const { default: mailerRouter } = await import('./mailer.js')
@@ -34,7 +51,7 @@ describe('GET /api/mailer/jobs', () => {
   })
 
   it('인증 성공 시 작업 목록 반환', async () => {
-    db.query.mockResolvedValueOnce({ rows: [{ id: '1', name: 'test' }] })
+    mockFrom.mockReturnValueOnce(mockQuery({ data: [{ id: '1', name: 'test' }], error: null }))
     const res = await request(app).get('/api/mailer/jobs').set(AUTH)
     expect(res.status).toBe(200)
     expect(res.body).toEqual([{ id: '1', name: 'test' }])
@@ -49,7 +66,7 @@ describe('POST /api/mailer/jobs', () => {
 
   it('작업 생성 후 201 반환', async () => {
     const job = { id: '1', name: 'test', recipients: [], interval_minutes: 60 }
-    db.query.mockResolvedValueOnce({ rows: [job] })
+    mockFrom.mockReturnValueOnce(mockQuery({ data: job, error: null }))
     const res = await request(app).post('/api/mailer/jobs').set(AUTH).send(job)
     expect(res.status).toBe(201)
     expect(res.body.name).toBe('test')
@@ -69,7 +86,7 @@ describe('PATCH /api/mailer/jobs/:id', () => {
 
   it('유효한 필드로 업데이트 성공', async () => {
     const updated = { id: '1', name: 'updated', is_active: false }
-    db.query.mockResolvedValueOnce({ rows: [updated] })
+    mockFrom.mockReturnValueOnce(mockQuery({ data: [updated], error: null }))
     const res = await request(app).patch('/api/mailer/jobs/1').set(AUTH).send({ name: 'updated', is_active: false })
     expect(res.status).toBe(200)
     expect(res.body.name).toBe('updated')
@@ -78,9 +95,9 @@ describe('PATCH /api/mailer/jobs/:id', () => {
 
 describe('DELETE /api/mailer/jobs/:id', () => {
   it('첨부파일 없는 작업 삭제', async () => {
-    db.query
-      .mockResolvedValueOnce({ rows: [{ id: '1', attachments: [] }] }) // getJob
-      .mockResolvedValueOnce({ rows: [] })                               // deleteJob
+    mockFrom
+      .mockReturnValueOnce(mockQuery({ data: { id: '1', attachments: [] }, error: null }))  // getJob
+      .mockReturnValueOnce(mockQuery({ data: null, error: null }))                           // deleteJob
     const res = await request(app).delete('/api/mailer/jobs/1').set(AUTH)
     expect(res.status).toBe(200)
   })
