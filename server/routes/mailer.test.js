@@ -56,6 +56,26 @@ describe('POST /api/mailer/jobs', () => {
   })
 })
 
+describe('PATCH /api/mailer/jobs/:id', () => {
+  it('인증 없으면 401', async () => {
+    const res = await request(app).patch('/api/mailer/jobs/1').send({ name: 'x' })
+    expect(res.status).toBe(401)
+  })
+
+  it('허용되지 않은 필드만 있으면 400', async () => {
+    const res = await request(app).patch('/api/mailer/jobs/1').set(AUTH).send({ id: 'hacked', send_count: 999 })
+    expect(res.status).toBe(400)
+  })
+
+  it('유효한 필드로 업데이트 성공', async () => {
+    const updated = { id: '1', name: 'updated', is_active: false }
+    db.query.mockResolvedValueOnce({ rows: [updated] })
+    const res = await request(app).patch('/api/mailer/jobs/1').set(AUTH).send({ name: 'updated', is_active: false })
+    expect(res.status).toBe(200)
+    expect(res.body.name).toBe('updated')
+  })
+})
+
 describe('DELETE /api/mailer/jobs/:id', () => {
   it('첨부파일 없는 작업 삭제', async () => {
     db.query

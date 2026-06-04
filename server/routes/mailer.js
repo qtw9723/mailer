@@ -6,6 +6,12 @@ import { sendMail } from '../smtp.js'
 
 const router = Router()
 
+const ALLOWED_JOB_PATCH_FIELDS = new Set([
+  'name', 'sender', 'sender_account_id', 'subject', 'body',
+  'recipients', 'interval_minutes', 'use_index', 'attachments',
+  'is_active', 'sort_order',
+])
+
 function auth(req, res, next) {
   if (req.headers['x-app-password'] !== process.env.APP_PASSWORD) {
     return res.status(401).json({ error: 'unauthorized' })
@@ -42,8 +48,8 @@ router.post('/jobs', auth, async (req, res) => {
 router.patch('/jobs/:id', auth, async (req, res) => {
   const { id } = req.params
   const fields = req.body
-  const keys = Object.keys(fields)
-  if (keys.length === 0) return res.status(400).json({ error: 'no fields' })
+  const keys = Object.keys(fields).filter(k => ALLOWED_JOB_PATCH_FIELDS.has(k))
+  if (keys.length === 0) return res.status(400).json({ error: 'no valid fields' })
 
   const setClauses = keys.map((k, i) => `"${k}" = $${i + 1}`)
   const values = keys.map(k => fields[k])
@@ -53,6 +59,7 @@ router.patch('/jobs/:id', auth, async (req, res) => {
       `UPDATE mail_jobs SET ${setClauses.join(', ')} WHERE id = $${keys.length + 1} RETURNING *`,
       [...values, id]
     )
+    if (!rows[0]) return res.status(404).json({ error: 'not found' })
     res.json(rows[0])
   } catch (e) {
     res.status(500).json({ error: e.message })
@@ -65,6 +72,7 @@ router.delete('/jobs/:id', auth, async (req, res) => {
   try {
     const { rows } = await db.query('SELECT * FROM mail_jobs WHERE id = $1', [id])
     const job = rows[0]
+    if (!job) return res.status(404).json({ error: 'not found' })
     if (job?.attachments?.length) {
       const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
       await supabase.storage.from('attachments').remove(job.attachments.map(a => a.path))
