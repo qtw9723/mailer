@@ -625,3 +625,151 @@ body {
   color: #606070; font-size: 11px; font-weight: 600; padding: 2px 6px;
 }
 .pw-toggle-btn:hover { color: #9d8ffc; }
+
+/* ── CS SmartHub 허브 홈 ── */
+.hub-wrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #0d0d14;
+}
+
+.hub-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  height: 56px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.hub-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f0f0f0;
+  letter-spacing: -0.3px;
+}
+
+.hub-main {
+  flex: 1;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 24px;
+  width: 100%;
+}
+
+.hub-subtitle {
+  font-size: 18px;
+  font-weight: 600;
+  color: #c8c8d8;
+  margin: 0 0 28px;
+}
+
+.hub-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.hub-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 24px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(157,143,252,0.15);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: left;
+  color: inherit;
+}
+
+.hub-card:hover:not(.hub-card-disabled):not(.hub-card-empty) {
+  border-color: rgba(157,143,252,0.45);
+  background: rgba(157,143,252,0.06);
+}
+
+.hub-card-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.hub-card-empty {
+  border-style: dashed;
+  cursor: default;
+  opacity: 0.3;
+}
+
+.hub-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.06);
+  color: #808090;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.hub-card-icon {
+  font-size: 28px;
+  margin-bottom: 4px;
+}
+
+.hub-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e8e8f0;
+}
+
+.hub-card-desc {
+  font-size: 12px;
+  color: #606070;
+}
+
+/* ── 툴 내부 공통 헤더 추가 스타일 ── */
+.hub-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  color: #7070a0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: color 0.15s;
+}
+
+.hub-back-btn:hover {
+  color: #a0a0c0;
+}
+
+.hub-divider {
+  color: rgba(255,255,255,0.12);
+  font-size: 14px;
+}
+
+.hub-logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #606070;
+  background: none;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.hub-logout-btn:hover {
+  color: #a0a0c0;
+  border-color: rgba(255,255,255,0.15);
+}
