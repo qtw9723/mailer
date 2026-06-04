@@ -1,7 +1,7 @@
 // src/components/JobModal.jsx
 import { useState, useRef } from 'react'
 import TagInput from './TagInput.jsx'
-import { uploadFile, deleteFile } from '../lib/storage.js'
+import { uploadFile, deleteFile } from '../../lib/storage.js'
 
 export default function JobModal({ job, onSubmit, onClose, loading, senders = [] }) {
   const [name, setName] = useState(job?.name ?? '')
