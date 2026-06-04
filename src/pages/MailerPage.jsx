@@ -1,5 +1,6 @@
 // src/pages/MailerPage.jsx
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, Trash2 } from 'lucide-react'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
@@ -12,6 +13,7 @@ import SenderModal from '../components/mailer/SenderModal.jsx'
 import AppHeader from '../components/shared/AppHeader.jsx'
 
 export default function MailerPage() {
+  const navigate = useNavigate()
   const password = getCookie()
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(false)
@@ -29,9 +31,12 @@ export default function MailerPage() {
       const data = await getJobs(password)
       setJobs(data.slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)))
     } catch (e) {
-      if (e.message === 'UNAUTHORIZED') clearCookie()
+      if (e.message === 'UNAUTHORIZED') {
+        clearCookie()
+        navigate('/login')
+      }
     }
-  }, [password])
+  }, [password, navigate])
 
   const loadSenders = useCallback(async () => {
     try { setSenders(await getSenders(password)) } catch {}
@@ -42,7 +47,7 @@ export default function MailerPage() {
     loadSenders()
     pollRef.current = setInterval(refreshJobs, 60_000)
     return () => clearInterval(pollRef.current)
-  }, [])
+  }, [refreshJobs, loadSenders])
 
   const handleCreate = async (formData) => {
     setLoading(true)
