@@ -9,7 +9,14 @@
 
 CS SmartHub 허브에 **Grafana 모니터링 리포트** 툴 추가. 기존 Python 스크립트(`~/grafana-monitoring/grafana_daily_report.py`)를 **Node/Express로 포팅**:
 - 허브 `/grafana` 페이지에서 **웹 on-demand 조회**(네이티브 React UI)
-- **Vercel Cron**이 매일 09:00 KST에 리포트 **이메일 자동 발송**
+- 매일 설정된 시각(KST)에 리포트 **이메일 자동 발송**
+
+> 🔄 **2026-06-05 (2차) 업데이트 — 발송 설정 기능 추가, 스케줄 방식 변경.**
+> - 수신자·발송 시각(시 단위, KST)·자동발송 토글을 `/grafana` **"설정" 탭**에서 편집(Supabase `grafana_report_settings` 싱글톤).
+> - **스케줄러 변경**: ~~Vercel Cron `/api/grafana/cron`~~ → **Supabase pg_cron**이 매시간 `GET /api/grafana/tick`(Bearer `CRON_SECRET`) 호출 → 내부에서 "현재 KST 시 == 설정 시각 & 오늘 미발송"일 때만 발송. `vercel.json`의 crons는 제거됨.
+> - `GRAFANA_EMAIL_TO` env는 설정 recipients가 비었을 때의 **폴백**으로만 사용. 완전 중단은 설정 탭의 "매일 자동 발송" 토글 OFF.
+> - 설계/계획: `specs/2026-06-05-grafana-report-settings-design.md`, `plans/2026-06-05-grafana-report-settings.md`.
+> - 배포됨: 코드(`vercel --prod`) + Supabase SQL 2개(테이블 생성, pg_cron `grafana-report-tick` `0 * * * *`) 적용 완료. `/settings`·`/tick` 프로덕션 검증 완료.
 
 > ✅ **2026-06-05 배포 완료.** push·env 주입(8개)·`vercel --prod`·프로덕션 검증 모두 끝남.
 > - push: `c2473f5..2f908de` (main)
