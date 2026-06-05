@@ -3,5 +3,8 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/grafana/cron", "schedule": "0 0 * * *" }
   ]
 }
