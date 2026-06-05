@@ -11,7 +11,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (getCookie()) navigate('/', { replace: true })
-  }, [])
+  }, [navigate])
 
   const handleLogin = async (e) => {
     e.preventDefault()

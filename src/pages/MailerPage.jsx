@@ -39,7 +39,7 @@ export default function MailerPage() {
   }, [password, navigate])
 
   const loadSenders = useCallback(async () => {
-    try { setSenders(await getSenders(password)) } catch {}
+    try { setSenders(await getSenders(password)) } catch { /* 발신 계정 로드는 best-effort */ }
   }, [password])
 
   useEffect(() => {
