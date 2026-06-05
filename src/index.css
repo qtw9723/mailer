@@ -802,3 +802,14 @@ body {
 .grafana-log-msg { color: #b8b8c8; font-size: 12px; word-break: break-word; }
 .spin { animation: grafana-spin 1s linear infinite; }
 @keyframes grafana-spin { to { transform: rotate(360deg); } }
+
+.grafana-settings { max-width: 520px; }
+.grafana-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #c0c0d0;
+  cursor: pointer;
+}
+.grafana-toggle input { width: 15px; height: 15px; accent-color: #9d8ffc; }
