@@ -1,5 +1,5 @@
 export const COOKIE_NAME = 'smarthub-password'
-const COOKIE_MINUTES = 10
+const COOKIE_DAYS = 100
 
 export function getCookie() {
   const match = document.cookie.split('; ').find(r => r.startsWith(COOKIE_NAME + '='))
@@ -7,7 +7,7 @@ export function getCookie() {
 }
 
 export function setCookie(value) {
-  const expires = new Date(Date.now() + COOKIE_MINUTES * 60 * 1000).toUTCString()
+  const expires = new Date(Date.now() + COOKIE_DAYS * 24 * 60 * 60 * 1000).toUTCString()
   document.cookie = `${COOKIE_NAME}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Strict`
 }
 
