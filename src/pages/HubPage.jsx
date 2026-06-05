@@ -18,7 +18,7 @@ const TOOLS = [
     name: 'Grafana 리포트',
     description: '모니터링 리포트 생성',
     path: '/grafana',
-    active: false,
+    active: true,
   },
   {
     id: 'chatbot',

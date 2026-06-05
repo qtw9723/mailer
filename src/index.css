@@ -773,3 +773,32 @@ body {
   color: #a0a0c0;
   border-color: rgba(255,255,255,0.15);
 }
+
+/* ── Grafana 리포트 ── */
+.grafana-wrap { padding: 20px 24px; max-width: 900px; margin: 0 auto; }
+.grafana-error { background: rgba(198,40,40,0.12); color: #ff8a80; border: 1px solid rgba(198,40,40,0.3); padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; }
+.grafana-summary { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-radius: 10px; font-weight: 700; font-size: 15px; margin-bottom: 20px; }
+.grafana-summary.ok { background: rgba(46,125,50,0.15); color: #81c784; border: 1px solid rgba(46,125,50,0.35); }
+.grafana-summary.alert { background: rgba(198,40,40,0.15); color: #ff8a80; border: 1px solid rgba(198,40,40,0.35); }
+.grafana-time { font-size: 12px; font-weight: 400; color: #808090; }
+.grafana-section { margin-bottom: 26px; }
+.grafana-section-title { font-size: 14px; font-weight: 600; color: #c8c8d8; margin: 0 0 12px; }
+.grafana-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.grafana-card { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-left-width: 3px; }
+.grafana-card.ok { border-left-color: #2e7d32; }
+.grafana-card.warn { border-left-color: #c62828; }
+.grafana-card.na { border-left-color: #555; opacity: 0.7; }
+.grafana-card-label { font-size: 12px; color: #9090a0; }
+.grafana-card-value { font-size: 20px; font-weight: 700; color: #e8e8f0; }
+.grafana-card-threshold { font-size: 11px; color: #606070; }
+.grafana-log-group { margin-bottom: 14px; }
+.grafana-log-head { font-size: 13px; padding: 8px 12px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
+.grafana-log-head.warn { color: #ff8a80; }
+.grafana-log-head.ok { color: #81c784; }
+.grafana-log-head.na { color: #909090; }
+.grafana-log-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+.grafana-log-table td { padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); vertical-align: top; }
+.grafana-log-time { color: #707080; font-size: 11px; white-space: nowrap; width: 130px; }
+.grafana-log-msg { color: #b8b8c8; font-size: 12px; word-break: break-word; }
+.spin { animation: grafana-spin 1s linear infinite; }
+@keyframes grafana-spin { to { transform: rotate(360deg); } }
