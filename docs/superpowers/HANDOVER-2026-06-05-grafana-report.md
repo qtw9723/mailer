@@ -7,11 +7,15 @@
 
 ## 0. 30초 요약
 
-CS SmartHub 허브에 **Grafana 모니터링 리포트** 툴을 추가하는 중. 기존 Python 스크립트(`~/grafana-monitoring/grafana_daily_report.py`)를 **Node/Express로 포팅**해서:
+CS SmartHub 허브에 **Grafana 모니터링 리포트** 툴 추가. 기존 Python 스크립트(`~/grafana-monitoring/grafana_daily_report.py`)를 **Node/Express로 포팅**:
 - 허브 `/grafana` 페이지에서 **웹 on-demand 조회**(네이티브 React UI)
 - **Vercel Cron**이 매일 09:00 KST에 리포트 **이메일 자동 발송**
 
-**코드 구현은 100% 완료(로컬 검증까지 통과)**. 남은 건 **(1) git push, (2) Vercel 배포(env 주입 + 재배포), (3) 프로덕션/브라우저 최종 확인** 뿐.
+> ✅ **2026-06-05 배포 완료.** push·env 주입(8개)·`vercel --prod`·프로덕션 검증 모두 끝남.
+> - push: `c2473f5..2f908de` (main)
+> - prod API: 무인증 401 / 인증 200 + 실데이터(CPU 27.6 / MEM 57.4 / DISK 51.7 / alerts 2)
+> - `/cron` 무인증 401(메일 미발송), Cron 등록 확인 `/api/grafana/cron @ 0 0 * * *`
+> - 남은 선택사항: 실제 cron 이메일 1회 수동 트리거 테스트(E), 브라우저 UI 육안 확인(F)
 
 ---
 
