@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { getReport } from '../lib/api/grafana.js'
 import { getCookie, clearCookie } from '../lib/auth.js'
+import { fmtKst } from '../lib/datetime.js'
 import AppHeader from '../components/shared/AppHeader.jsx'
 import GrafanaSettings from '../components/grafana/GrafanaSettings.jsx'
 
@@ -56,7 +57,7 @@ export default function GrafanaPage() {
               <>
                 <div className={`grafana-summary ${report.summary.status}`}>
                   {alerts ? `⚠️ 이상 ${alerts}건 — 점검 필요` : '✅ 정상'}
-                  <span className="grafana-time">{report.generatedAt?.slice(0, 16).replace('T', ' ')} UTC</span>
+                  <span className="grafana-time">{fmtKst(report.generatedAt)} (KST)</span>
                 </div>
 
                 <section className="grafana-section">
