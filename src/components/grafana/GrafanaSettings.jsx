@@ -57,7 +57,7 @@ export default function GrafanaSettings() {
       <div className="form-field">
         <label className="form-label">수신자 이메일</label>
         <TagInput values={recipients} onChange={(v) => { setRecipients(v); setSaved(false) }} />
-        <p className="form-hint">이메일 입력 후 Enter. 비우면 자동 발송되지 않습니다.</p>
+        <p className="form-hint">이메일 입력 후 Enter. 비우면 환경변수 수신자로 폴백됩니다. 발송을 완전히 멈추려면 아래 ‘매일 자동 발송’을 꺼주세요.</p>
       </div>
 
       <div className="form-field">
