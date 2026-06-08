@@ -85,16 +85,65 @@ describe('buildReport', () => {
 })
 
 describe('buildEmailHtml', () => {
-  it('요약과 앱 라벨이 포함된 HTML 반환', () => {
-    const report = buildReport({
-      generatedAt: '2026-06-05T00:00:00.000Z',
-      metrics: [{ label: 'CPU', value: 13.7, threshold: 80, error: null }],
-      logs: [{ app: 'soe', count: 1, rows: [{ time: '2026-06-03 16:37', msg: 'boom' }], error: null }],
-    })
-    const html = buildEmailHtml(report)
+  const baseReport = (over = {}) => buildReport({
+    generatedAt: '2026-06-05T00:00:00.000Z',
+    metrics: [{ label: 'CPU', value: 13.7, threshold: 80, error: null }],
+    logs: [{ app: 'soe', count: 1, rows: [{ time: '2026-06-03 16:37', msg: 'boom' }], error: null }],
+    ...over,
+  })
+
+  it('요약과 앱 라벨/메시지가 포함된 HTML 반환', () => {
+    const html = buildEmailHtml(baseReport())
     expect(html).toContain('<html')
     expect(html).toContain('이상 1건')
     expect(html).toContain('soe')
     expect(html).toContain('boom')
+  })
+
+  it('새 디자인 요소 포함(그림자/부제/섹션타이틀/테이블헤더)', () => {
+    const html = buildEmailHtml(baseReport())
+    expect(html).toContain('box-shadow')
+    expect(html).toContain('지난 24시간 모니터링 현황')
+    expect(html).toContain('📈 리소스 사용량')
+    expect(html).toContain('🔍 ERROR 로그')
+    expect(html).toContain('>항목<')
+    expect(html).toContain('>시간<')
+    expect(html).toContain('>메시지<')
+  })
+
+  it('날짜를 KST 한국어 형식으로 표시', () => {
+    const html = buildEmailHtml(baseReport())
+    expect(html).toContain('2026년 06월 05일 09:00')
+    expect(html).toContain('(KST)')
+  })
+
+  it('로그가 5건 초과면 "외 N건" 행 표시', () => {
+    const rows = Array.from({ length: 8 }, (_, i) => ({ time: `t${i}`, msg: `m${i}` }))
+    const html = buildEmailHtml(baseReport({ logs: [{ app: 'soe', count: 8, rows, error: null }] }))
+    expect(html).toContain('외 3건')
+  })
+
+  it('로그가 5건 이하면 "외" 초과행 없음', () => {
+    const html = buildEmailHtml(baseReport())
+    expect(html).not.toContain('외 ')
+  })
+
+  it('로그 그룹 에러는 메시지 표기하고 행 테이블 없음', () => {
+    const html = buildEmailHtml(baseReport({ logs: [{ app: 'soe', count: 0, rows: [], error: 'ES 조회 실패' }] }))
+    expect(html).toContain('ES 조회 실패')
+    // 로그 테이블은 시간/메시지 헤더로 식별됨 — 에러 그룹이면 렌더되지 않아야 함 (리소스 테이블의 항목/값/임계 헤더는 별개로 존재)
+    expect(html).not.toContain('>시간<')
+  })
+
+  it('메트릭 에러는 ○ 아이콘과 에러문구 표기', () => {
+    const html = buildEmailHtml(baseReport({ metrics: [{ label: 'CPU', value: null, threshold: 80, error: 'PromQL 오류' }] }))
+    expect(html).toContain('○')
+    expect(html).toContain('PromQL 오류')
+  })
+
+  it('메시지를 HTML 이스케이프', () => {
+    const html = buildEmailHtml(baseReport({ logs: [{ app: 'soe', count: 1, rows: [{ time: 't', msg: '<script>x</script>' }], error: null }] }))
+    expect(html).toContain('&lt;script&gt;')
+    expect(html).not.toContain('<script>x')
   })
 })
