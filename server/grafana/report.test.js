@@ -1,7 +1,7 @@
 // server/grafana/report.test.js
 import { describe, it, expect } from 'vitest'
 import {
-  extractPromValue, normalizeEsIndex, fmtTimeKst, parseEsResponses, buildReport, buildEmailHtml,
+  extractPromValue, normalizeEsIndex, fmtTimeKst, parseEsResponses, buildReport, buildEmailHtml, esLogRange,
 } from './report.js'
 
 describe('extractPromValue', () => {
@@ -145,5 +145,20 @@ describe('buildEmailHtml', () => {
     const html = buildEmailHtml(baseReport({ logs: [{ app: 'soe', count: 1, rows: [{ time: 't', msg: '<script>x</script>' }], error: null }] }))
     expect(html).toContain('&lt;script&gt;')
     expect(html).not.toContain('<script>x')
+  })
+})
+
+describe('esLogRange', () => {
+  it('lagHours=0이면 now-24h ~ now', () => {
+    expect(esLogRange(24, 0)).toEqual({ gte: 'now-24h', lte: 'now' })
+  })
+  it('lagHours=3이면 now-27h ~ now-3h', () => {
+    expect(esLogRange(24, 3)).toEqual({ gte: 'now-27h', lte: 'now-3h' })
+  })
+  it('lagHours 기본값은 0', () => {
+    expect(esLogRange(24)).toEqual({ gte: 'now-24h', lte: 'now' })
+  })
+  it('lagHours=24면 now-48h ~ now-24h', () => {
+    expect(esLogRange(24, 24)).toEqual({ gte: 'now-48h', lte: 'now-24h' })
   })
 })

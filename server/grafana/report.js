@@ -34,6 +34,14 @@ export function fmtTimeKst(ts) {
   }
 }
 
+// ES 로그 조회 시간창. 적재 지연(lagHours) 보정을 위해 now-lagHours에서 끝나는 hours 길이 창.
+export function esLogRange(hours, lagHours = 0) {
+  return {
+    gte: `now-${hours + lagHours}h`,
+    lte: lagHours > 0 ? `now-${lagHours}h` : 'now',
+  }
+}
+
 // _msearch responses[] → {label: {count, rows}}
 export function parseEsResponses(responses, queries, timefield) {
   const out = {}
