@@ -19,10 +19,10 @@ export async function getSettings() {
 }
 
 // recipients/send_hour/enabled 저장.
-export async function saveSettings({ recipients, send_hour, enabled }) {
+export async function saveSettings({ recipients, send_hour, enabled, log_lag_hours }) {
   const { data, error } = await db
     .from(TABLE)
-    .update({ recipients, send_hour, enabled, updated_at: new Date().toISOString() })
+    .update({ recipients, send_hour, enabled, log_lag_hours, updated_at: new Date().toISOString() })
     .eq('id', SINGLETON_ID)
     .select('*')
     .single()
