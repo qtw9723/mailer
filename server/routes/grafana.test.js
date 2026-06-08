@@ -48,6 +48,19 @@ describe('GET /api/grafana/report', () => {
     const res = await request(app).get('/api/grafana/report').set('x-app-password', 'test-pw')
     expect(res.status).toBe(502)
   })
+  it('설정의 log_lag_hours로 gatherReportData 호출', async () => {
+    getSettings.mockResolvedValueOnce({ recipients: ['a@x.com'], send_hour: 9, enabled: true, log_lag_hours: 2 })
+    gatherReportData.mockResolvedValueOnce(SAMPLE)
+    await request(app).get('/api/grafana/report').set('x-app-password', 'test-pw')
+    expect(gatherReportData).toHaveBeenCalledWith(2)
+  })
+  it('설정 조회 실패해도 기본 오프셋(3)으로 리포트 반환', async () => {
+    getSettings.mockRejectedValueOnce(new Error('db down'))
+    gatherReportData.mockResolvedValueOnce(SAMPLE)
+    const res = await request(app).get('/api/grafana/report').set('x-app-password', 'test-pw')
+    expect(res.status).toBe(200)
+    expect(gatherReportData).toHaveBeenCalledWith(3)
+  })
 })
 
 describe('GET /api/grafana/settings', () => {
@@ -56,16 +69,18 @@ describe('GET /api/grafana/settings', () => {
     expect(res.status).toBe(401)
   })
   it('recipients 비어있으면 env 폴백으로 채워 반환', async () => {
-    getSettings.mockResolvedValueOnce({ id: 1, recipients: [], send_hour: 9, enabled: true, last_sent_date: null })
+    getSettings.mockResolvedValueOnce({ id: 1, recipients: [], send_hour: 9, enabled: true, last_sent_date: null, log_lag_hours: 3 })
     const res = await request(app).get('/api/grafana/settings').set('x-app-password', 'test-pw')
     expect(res.status).toBe(200)
     expect(res.body.recipients).toEqual(['fallback@example.com'])
     expect(res.body.send_hour).toBe(9)
+    expect(res.body.log_lag_hours).toBe(3)
   })
-  it('recipients 있으면 그대로 반환', async () => {
-    getSettings.mockResolvedValueOnce({ id: 1, recipients: ['a@x.com'], send_hour: 13, enabled: false, last_sent_date: null })
+  it('recipients/log_lag_hours 그대로 반환', async () => {
+    getSettings.mockResolvedValueOnce({ id: 1, recipients: ['a@x.com'], send_hour: 13, enabled: false, last_sent_date: null, log_lag_hours: 5 })
     const res = await request(app).get('/api/grafana/settings').set('x-app-password', 'test-pw')
     expect(res.body.recipients).toEqual(['a@x.com'])
+    expect(res.body.log_lag_hours).toBe(5)
   })
 })
 
@@ -84,12 +99,23 @@ describe('PUT /api/grafana/settings', () => {
       .set('x-app-password', 'test-pw').send({ recipients: ['a@x.com'], send_hour: null, enabled: true })
     expect(res.status).toBe(400)
   })
-  it('정상 저장 시 저장된 설정 반환', async () => {
-    saveSettings.mockResolvedValueOnce({ id: 1, recipients: ['a@x.com'], send_hour: 8, enabled: true, last_sent_date: null })
+  it('log_lag_hours 범위 밖이면 400', async () => {
+    const res = await request(app).put('/api/grafana/settings')
+      .set('x-app-password', 'test-pw').send({ recipients: ['a@x.com'], send_hour: 9, enabled: true, log_lag_hours: 25 })
+    expect(res.status).toBe(400)
+  })
+  it('정상 저장 시 log_lag_hours 포함해 저장(미지정 시 기본 3)', async () => {
+    saveSettings.mockResolvedValueOnce({ id: 1, recipients: ['a@x.com'], send_hour: 8, enabled: true, last_sent_date: null, log_lag_hours: 3 })
     const res = await request(app).put('/api/grafana/settings')
       .set('x-app-password', 'test-pw').send({ recipients: ['a@x.com', ' '], send_hour: 8, enabled: true })
     expect(res.status).toBe(200)
-    expect(saveSettings).toHaveBeenCalledWith({ recipients: ['a@x.com'], send_hour: 8, enabled: true })
+    expect(saveSettings).toHaveBeenCalledWith({ recipients: ['a@x.com'], send_hour: 8, enabled: true, log_lag_hours: 3 })
+  })
+  it('log_lag_hours 지정 시 그 값으로 저장', async () => {
+    saveSettings.mockResolvedValueOnce({ id: 1, recipients: ['a@x.com'], send_hour: 8, enabled: true, last_sent_date: null, log_lag_hours: 2 })
+    await request(app).put('/api/grafana/settings')
+      .set('x-app-password', 'test-pw').send({ recipients: ['a@x.com'], send_hour: 8, enabled: true, log_lag_hours: 2 })
+    expect(saveSettings).toHaveBeenCalledWith({ recipients: ['a@x.com'], send_hour: 8, enabled: true, log_lag_hours: 2 })
   })
 })
 
@@ -111,16 +137,17 @@ describe('GET /api/grafana/tick', () => {
     expect(res.body.sent).toBe(false)
     expect(res.body.reason).toBe('not-time')
   })
-  it('발송 조건 충족 시 설정 recipients로 발송 후 markSent', async () => {
+  it('발송 조건 충족 시 설정 recipients/lag로 발송 후 markSent', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date('2026-06-05T00:00:00Z')) // KST 09시, 2026-06-05
+    vi.setSystemTime(new Date('2026-06-05T00:00:00Z'))
     try {
-      getSettings.mockResolvedValueOnce({ recipients: ['a@x.com'], send_hour: 9, enabled: true, last_sent_date: '2000-01-01' })
+      getSettings.mockResolvedValueOnce({ recipients: ['a@x.com'], send_hour: 9, enabled: true, last_sent_date: '2000-01-01', log_lag_hours: 4 })
       gatherReportData.mockResolvedValueOnce(SAMPLE)
       sendReportEmail.mockResolvedValueOnce()
       const res = await request(app).get('/api/grafana/tick').set('Authorization', 'Bearer cron-secret')
       expect(res.status).toBe(200)
       expect(res.body).toEqual({ sent: true, alerts: 0 })
+      expect(gatherReportData).toHaveBeenCalledWith(4)
       expect(sendReportEmail).toHaveBeenCalledOnce()
       expect(sendReportEmail.mock.calls[0][1]).toEqual(['a@x.com'])
       expect(markSent).toHaveBeenCalledOnce()
@@ -131,7 +158,7 @@ describe('GET /api/grafana/tick', () => {
   })
   it('recipients 없고 env 폴백도 없으면 no-recipients', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date('2026-06-05T00:00:00Z')) // KST 09시
+    vi.setSystemTime(new Date('2026-06-05T00:00:00Z'))
     process.env.GRAFANA_EMAIL_TO = ''
     try {
       getSettings.mockResolvedValueOnce({ recipients: [], send_hour: 9, enabled: true, last_sent_date: '2000-01-01' })
