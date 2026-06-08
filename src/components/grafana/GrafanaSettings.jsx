@@ -9,6 +9,7 @@ export default function GrafanaSettings() {
   const [recipients, setRecipients] = useState([])
   const [sendHour, setSendHour] = useState(9)
   const [enabled, setEnabled] = useState(true)
+  const [logLagHours, setLogLagHours] = useState(3)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -21,6 +22,7 @@ export default function GrafanaSettings() {
       setRecipients(s.recipients ?? [])
       setSendHour(s.send_hour ?? 9)
       setEnabled(!!s.enabled)
+      setLogLagHours(s.log_lag_hours ?? 3)
     } catch (e) {
       if (e.message === 'UNAUTHORIZED') clearCookie()
       else setError('설정을 불러오지 못했습니다.')
@@ -37,10 +39,11 @@ export default function GrafanaSettings() {
     setSaved(false)
     setError('')
     try {
-      const s = await updateSettings({ recipients, send_hour: sendHour, enabled }, password)
+      const s = await updateSettings({ recipients, send_hour: sendHour, enabled, log_lag_hours: logLagHours }, password)
       setRecipients(s.recipients ?? [])
       setSendHour(s.send_hour ?? sendHour)
       setEnabled(!!s.enabled)
+      setLogLagHours(s.log_lag_hours ?? logLagHours)
       setSaved(true)
     } catch (e) {
       if (e.message === 'UNAUTHORIZED') clearCookie()
@@ -83,6 +86,21 @@ export default function GrafanaSettings() {
           />
           매일 자동 발송
         </label>
+      </div>
+
+      <div className="form-field">
+        <label className="form-label" htmlFor="grafana-log-lag">로그 적재 지연 보정 (시간)</label>
+        <select
+          id="grafana-log-lag"
+          className="form-select"
+          value={logLagHours}
+          onChange={(e) => { setLogLagHours(Number(e.target.value)); setSaved(false) }}
+        >
+          {Array.from({ length: 25 }, (_, h) => (
+            <option key={h} value={h}>{h}시간</option>
+          ))}
+        </select>
+        <p className="form-hint">로그가 ES에 늦게 색인되는 지연을 감안해, 조회 시간창을 이만큼 뒤로 당깁니다. 기본 3시간.</p>
       </div>
 
       {error && <div className="grafana-error">{error}</div>}
