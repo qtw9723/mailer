@@ -18,7 +18,7 @@ export async function getSettings() {
   return created
 }
 
-// recipients/send_hour/enabled 저장.
+// recipients/send_hour/enabled/log_lag_hours 저장.
 export async function saveSettings({ recipients, send_hour, enabled, log_lag_hours }) {
   const { data, error } = await db
     .from(TABLE)

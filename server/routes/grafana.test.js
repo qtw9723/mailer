@@ -104,6 +104,11 @@ describe('PUT /api/grafana/settings', () => {
       .set('x-app-password', 'test-pw').send({ recipients: ['a@x.com'], send_hour: 9, enabled: true, log_lag_hours: 25 })
     expect(res.status).toBe(400)
   })
+  it('log_lag_hours 음수면 400', async () => {
+    const res = await request(app).put('/api/grafana/settings')
+      .set('x-app-password', 'test-pw').send({ recipients: ['a@x.com'], send_hour: 9, enabled: true, log_lag_hours: -1 })
+    expect(res.status).toBe(400)
+  })
   it('정상 저장 시 log_lag_hours 포함해 저장(미지정 시 기본 3)', async () => {
     saveSettings.mockResolvedValueOnce({ id: 1, recipients: ['a@x.com'], send_hour: 8, enabled: true, last_sent_date: null, log_lag_hours: 3 })
     const res = await request(app).put('/api/grafana/settings')
