@@ -30,3 +30,6 @@ export const LOG_QUERIES = [
 export const LOG_HOURS = 24
 export const LOG_FETCH = 50
 export const LOG_SHOW = 5
+
+// 로그 적재 지연 보정 기본값(시간). 설정(log_lag_hours)이 없을 때의 폴백.
+export const LOG_INDEX_LAG_HOURS = 3
