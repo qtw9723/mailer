@@ -9,7 +9,11 @@ import chatbotRouter from './routes/chatbot.js'
 const app = express()
 const PORT = process.env.PORT ?? 3001
 
-app.use(cors({ origin: 'http://localhost:5173', credentials: true }))
+const corsOrigins = [
+  'http://localhost:5173',
+  'https://schedule-reporter-kakao.vercel.app',
+]
+app.use(cors({ origin: corsOrigins, credentials: true }))
 app.use(express.json())
 
 app.use('/api/mailer', mailerRouter)
