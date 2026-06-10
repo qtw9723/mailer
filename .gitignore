@@ -27,3 +27,4 @@ dist-ssr
 
 # Supabase CLI cache
 supabase/.temp
+.env*.local
