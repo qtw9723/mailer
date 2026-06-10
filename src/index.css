@@ -972,6 +972,9 @@ body {
 .grafana-log-head.na { color: var(--color-text-secondary); }
 .grafana-log-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
 .grafana-log-table td { padding: 7px 10px; border-bottom: 1px solid var(--color-border-subtle); vertical-align: top; }
+.grafana-log-table tr { cursor: pointer; border-left: 3px solid var(--color-status-error); }
+.grafana-log-table tr:hover td { background: var(--color-bg-hover); }
+.grafana-log-table tr.expanded .grafana-log-msg { white-space: pre-wrap; }
 .grafana-log-time { color: var(--color-text-secondary); font-size: 11px; white-space: nowrap; width: 130px; text-align: right; }
 .grafana-log-msg { color: var(--color-text-primary); font-size: 12px; word-break: break-word; }
 .spin { animation: grafana-spin 1s linear infinite; }

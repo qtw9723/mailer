@@ -7,6 +7,35 @@ import { fmtKst } from '../lib/datetime.js'
 import AppHeader from '../components/shared/AppHeader.jsx'
 import GrafanaSettings from '../components/grafana/GrafanaSettings.jsx'
 
+function LogGroup({ group }) {
+  const [expanded, setExpanded] = useState(null) // 펼친 행 인덱스
+
+  return (
+    <div className="grafana-log-group">
+      <div className={`grafana-log-head ${group.error ? 'na' : group.count ? 'warn' : 'ok'}`}>
+        <strong>{group.app}</strong> · {group.error ? group.error : `${group.count}건`}
+      </div>
+      {!group.error && group.count > 0 && (
+        <table className="grafana-log-table">
+          <tbody>
+            {group.rows.slice(0, 5).map((r, i) => (
+              <tr
+                key={i}
+                className={expanded === i ? 'expanded' : ''}
+                onClick={() => setExpanded(expanded === i ? null : i)}
+                title={expanded === i ? '접기' : '전문 보기'}
+              >
+                <td className="grafana-log-time mono">{r.time}</td>
+                <td className="grafana-log-msg">{expanded === i ? r.msg : r.msg.slice(0, 180)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
 export default function GrafanaPage() {
   const password = getCookie()
   const [tab, setTab] = useState('report')
@@ -41,7 +70,7 @@ export default function GrafanaPage() {
         )}
       </AppHeader>
 
-      <nav className="nav-tabs" style={{ padding: '0 24px' }}>
+      <nav className="nav-tabs">
         <button className={`nav-tab${tab === 'report' ? ' active' : ''}`} onClick={() => setTab('report')}>리포트</button>
         <button className={`nav-tab${tab === 'settings' ? ' active' : ''}`} onClick={() => setTab('settings')}>설정</button>
       </nav>
@@ -56,17 +85,18 @@ export default function GrafanaPage() {
             {report && (
               <>
                 <div className={`grafana-summary ${report.summary.status}`}>
-                  {alerts ? `⚠️ 이상 ${alerts}건 — 점검 필요` : '✅ 정상'}
-                  <span className="grafana-time">{fmtKst(report.generatedAt)} (KST)</span>
+                  <span className={`status-dot ${alerts ? 'fail' : 'ok'}`} />
+                  {alerts ? `이상 ${alerts}건 — 점검 필요` : '모두 정상입니다'}
+                  <span className="grafana-time mono">{fmtKst(report.generatedAt)} (KST)</span>
                 </div>
 
                 <section className="grafana-section">
-                  <h3 className="grafana-section-title">📈 리소스 사용량</h3>
+                  <h3 className="grafana-section-title">리소스 사용량</h3>
                   <div className="grafana-cards">
                     {report.metrics.map((m) => (
                       <div key={m.label} className={`grafana-card ${m.error ? 'na' : m.over ? 'warn' : 'ok'}`}>
                         <span className="grafana-card-label">{m.label}</span>
-                        <span className="grafana-card-value">
+                        <span className="grafana-card-value mono">
                           {m.error ? m.error : (m.value == null ? '데이터 없음' : (typeof m.value === 'number' ? m.value.toFixed(1) : m.value))}
                         </span>
                         <span className="grafana-card-threshold">임계 {m.threshold}</span>
@@ -76,26 +106,8 @@ export default function GrafanaPage() {
                 </section>
 
                 <section className="grafana-section">
-                  <h3 className="grafana-section-title">🔍 ERROR 로그 (앱별, 24h)</h3>
-                  {report.logs.map((g) => (
-                    <div key={g.app} className="grafana-log-group">
-                      <div className={`grafana-log-head ${g.error ? 'na' : g.count ? 'warn' : 'ok'}`}>
-                        <strong>{g.app}</strong> · {g.error ? g.error : `${g.count}건`}
-                      </div>
-                      {!g.error && g.count > 0 && (
-                        <table className="grafana-log-table">
-                          <tbody>
-                            {g.rows.slice(0, 5).map((r, i) => (
-                              <tr key={i}>
-                                <td className="grafana-log-time">{r.time}</td>
-                                <td className="grafana-log-msg">{r.msg.slice(0, 180)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      )}
-                    </div>
-                  ))}
+                  <h3 className="grafana-section-title">ERROR 로그 (앱별, 24h)</h3>
+                  {report.logs.map((g) => <LogGroup key={g.app} group={g} />)}
                 </section>
               </>
             )}
