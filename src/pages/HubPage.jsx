@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getJobs } from '../lib/api/mailer.js'
+import { getBots } from '../lib/api/chatbot.js'
 import { getCookie } from '../lib/auth.js'
 
 const TOOLS = [
@@ -25,22 +26,35 @@ const TOOLS = [
     id: 'chatbot',
     icon: '🤖',
     name: '챗봇 모니터링',
-    description: '챗봇 활성화 현황 추적',
+    description: '챗봇 일일 시나리오 체크',
     path: '/chatbot',
-    active: false,
+    active: true,
   },
 ]
 
+function lastFailed(checks) {
+  const last = checks?.[checks.length - 1]
+  return !!last && !last.ok
+}
+
 export default function HubPage() {
   const navigate = useNavigate()
-  const [jobs, setJobs] = useState(null) // null = 로딩/실패 → 배너 생략
+  const [jobs, setJobs] = useState(null)   // null = 로딩/실패 → 배너에서 제외
+  const [bots, setBots] = useState(null)
 
   useEffect(() => {
     getJobs(getCookie()).then(setJobs).catch(() => {})
+    getBots(getCookie()).then(setBots).catch(() => {})
   }, [])
 
-  const failCount = jobs?.filter(j => j.recent_sends?.length && !j.recent_sends[j.recent_sends.length - 1].ok).length ?? 0
+  const mailFailCount = jobs?.filter(j => lastFailed(j.recent_sends)).length ?? 0
+  const botFailCount = bots?.filter(b => lastFailed(b.recent_checks)).length ?? 0
   const activeCount = jobs?.filter(j => j.is_active).length ?? 0
+
+  const failParts = []
+  if (mailFailCount) failParts.push(`Mailer: 최근 발송 ${mailFailCount}건 실패`)
+  if (botFailCount) failParts.push(`챗봇: 최근 체크 ${botFailCount}건 실패`)
+  const hasFail = failParts.length > 0
 
   return (
     <div className="hub-wrapper">
@@ -49,11 +63,11 @@ export default function HubPage() {
       </header>
 
       <main className="hub-main">
-        {jobs && (
-          <div className={`hub-status-banner ${failCount ? 'alert' : 'ok'}`}>
-            <span className={`status-dot ${failCount ? 'fail' : 'ok'}`} />
-            {failCount
-              ? `Mailer: 최근 발송 ${failCount}건 실패 — 확인이 필요합니다`
+        {(jobs || bots) && (
+          <div className={`hub-status-banner ${hasFail ? 'alert' : 'ok'}`}>
+            <span className={`status-dot ${hasFail ? 'fail' : 'ok'}`} />
+            {hasFail
+              ? `${failParts.join(' · ')} — 확인이 필요합니다`
               : `모두 정상입니다 · 활성 작업 ${activeCount}개`}
           </div>
         )}
@@ -69,7 +83,10 @@ export default function HubPage() {
             >
               {!tool.active && <span className="hub-badge">준비 중</span>}
               {tool.id === 'mailer' && jobs && (
-                <span className={`status-dot hub-card-dot ${failCount ? 'fail' : 'ok'}`} />
+                <span className={`status-dot hub-card-dot ${mailFailCount ? 'fail' : 'ok'}`} />
+              )}
+              {tool.id === 'chatbot' && bots && (
+                <span className={`status-dot hub-card-dot ${botFailCount ? 'fail' : 'ok'}`} />
               )}
               <span className="hub-card-icon">{tool.icon}</span>
               <span className="hub-card-name">{tool.name}</span>

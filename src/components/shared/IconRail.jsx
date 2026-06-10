@@ -5,7 +5,7 @@ import { clearCookie } from '../../lib/auth.js'
 const TOOLS = [
   { path: '/mailer', icon: Mail, label: 'Mailer' },
   { path: '/grafana', icon: BarChart3, label: 'Grafana 리포트' },
-  { path: '/chatbot', icon: Bot, label: '챗봇 모니터링 (준비 중)', disabled: true },
+  { path: '/chatbot', icon: Bot, label: '챗봇 모니터링' },
 ]
 
 export default function IconRail() {
