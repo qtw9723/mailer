@@ -1,6 +1,8 @@
 // src/components/JobModal.jsx
 import { useState, useRef } from 'react'
+import { toast } from 'sonner'
 import TagInput from './TagInput.jsx'
+import Modal from '../shared/Modal.jsx'
 import { uploadFile, deleteFile } from '../../lib/storage.js'
 
 export default function JobModal({ job, onSubmit, onClose, loading, senders = [] }) {
@@ -52,7 +54,7 @@ export default function JobModal({ job, onSubmit, onClose, loading, senders = []
     try {
       const folder = folderUuid ?? job.id
       const results = await Promise.all(
-        files.map(file => uploadFile(folder, file).catch(err => { alert(err.message); return null }))
+        files.map(file => uploadFile(folder, file).catch(err => { toast.error(err.message); return null }))
       )
       const uploaded = results.filter(Boolean)
       setAttachments(prev => {
@@ -69,7 +71,7 @@ export default function JobModal({ job, onSubmit, onClose, loading, senders = []
       await deleteFile(attachment.path)
       setAttachments(prev => prev.filter(a => a.path !== attachment.path))
     } catch (err) {
-      alert(err.message)
+      toast.error(err.message)
     }
   }
 
@@ -102,13 +104,12 @@ export default function JobModal({ job, onSubmit, onClose, loading, senders = []
   }
 
   return (
-    <div className="modal-overlay">
-      <div className="modal">
-        <h2 className="modal-title">{job ? '작업 수정' : '새 작업'}</h2>
-        <form onSubmit={handleSubmit}>
+    <Modal title={job ? '작업 수정' : '새 작업'} onClose={handleClose}>
+      <form onSubmit={handleSubmit}>
           <div className="form-field">
-            <label className="form-label">작업 이름</label>
+            <label className="form-label" htmlFor="job-name">작업 이름</label>
             <input
+              id="job-name"
               className="form-input"
               value={name}
               onChange={e => setName(e.target.value)}
@@ -118,14 +119,15 @@ export default function JobModal({ job, onSubmit, onClose, loading, senders = []
           </div>
 
           <div className="form-field">
-            <label className="form-label">발신 계정</label>
+            <label className="form-label" htmlFor="job-sender">발신 계정</label>
             {senders.length === 0 ? (
-              <p className="form-hint" style={{ color: '#f87171' }}>
+              <p className="form-hint form-hint-error">
                 등록된 발신 계정이 없습니다. 발신 계정 탭에서 먼저 추가해주세요.
               </p>
             ) : (
               <div className="sender-select-wrap">
                 <select
+                  id="job-sender"
                   className="sender-select"
                   value={senderAccountId}
                   onChange={e => setSenderAccountId(e.target.value)}
@@ -142,8 +144,9 @@ export default function JobModal({ job, onSubmit, onClose, loading, senders = []
           </div>
 
           <div className="form-field">
-            <label className="form-label">메일 제목</label>
+            <label className="form-label" htmlFor="job-subject">메일 제목</label>
             <input
+              id="job-subject"
               className="form-input"
               value={subject}
               onChange={e => setSubject(e.target.value)}
@@ -153,8 +156,9 @@ export default function JobModal({ job, onSubmit, onClose, loading, senders = []
           </div>
 
           <div className="form-field">
-            <label className="form-label">메일 본문</label>
+            <label className="form-label" htmlFor="job-body">메일 본문</label>
             <textarea
+              id="job-body"
               className="form-textarea"
               value={body}
               onChange={e => setBody(e.target.value)}
@@ -197,9 +201,10 @@ export default function JobModal({ job, onSubmit, onClose, loading, senders = []
           </div>
 
           <div className="form-field">
-            <label className="form-label">발송 간격</label>
+            <label className="form-label" htmlFor="job-interval">발송 간격</label>
             <div className="interval-row">
               <input
+                id="job-interval"
                 className="form-input"
                 type="number"
                 min="1"
@@ -239,8 +244,7 @@ export default function JobModal({ job, onSubmit, onClose, loading, senders = []
               {loading ? '저장 중...' : (job ? '수정' : '생성')}
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
   )
 }

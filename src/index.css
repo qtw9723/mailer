@@ -448,6 +448,7 @@ body {
   color: var(--color-text-secondary);
   margin: 6px 0 0;
 }
+.form-hint-error { color: var(--color-status-error); }
 .form-input, .form-textarea, .form-select {
   width: 100%;
   background: var(--color-bg-base);
@@ -802,6 +803,7 @@ body {
 
 /* ── 앱 비밀번호 입력 ── */
 .pw-input-wrap { position: relative; }
+.pw-input { padding-right: 58px; }
 .pw-toggle-btn {
   position: absolute; right: 10px; top: 50%;
   transform: translateY(-50%);
