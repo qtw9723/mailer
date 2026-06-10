@@ -6,16 +6,19 @@ import MailerPage from './pages/MailerPage.jsx'
 import GrafanaPage from './pages/GrafanaPage.jsx'
 import ChatbotPage from './pages/ChatbotPage.jsx'
 import ProtectedRoute from './components/shared/ProtectedRoute.jsx'
+import AppLayout from './components/shared/AppLayout.jsx'
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/" element={<ProtectedRoute><HubPage /></ProtectedRoute>} />
-        <Route path="/mailer" element={<ProtectedRoute><MailerPage /></ProtectedRoute>} />
-        <Route path="/grafana" element={<ProtectedRoute><GrafanaPage /></ProtectedRoute>} />
-        <Route path="/chatbot" element={<ProtectedRoute><ChatbotPage /></ProtectedRoute>} />
+        <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+          <Route path="/" element={<HubPage />} />
+          <Route path="/mailer" element={<MailerPage />} />
+          <Route path="/grafana" element={<GrafanaPage />} />
+          <Route path="/chatbot" element={<ChatbotPage />} />
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

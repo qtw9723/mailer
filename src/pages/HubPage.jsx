@@ -1,7 +1,5 @@
 // src/pages/HubPage.jsx
 import { useNavigate } from 'react-router-dom'
-import { LogOut } from 'lucide-react'
-import { clearCookie } from '../lib/auth.js'
 
 const TOOLS = [
   {
@@ -33,18 +31,10 @@ const TOOLS = [
 export default function HubPage() {
   const navigate = useNavigate()
 
-  const handleLogout = () => {
-    clearCookie()
-    navigate('/login')
-  }
-
   return (
     <div className="hub-wrapper">
       <header className="hub-header">
         <span className="hub-title">CS SmartHub</span>
-        <button className="hub-logout-btn" onClick={handleLogout}>
-          <LogOut size={13} /> 로그아웃
-        </button>
       </header>
 
       <main className="hub-main">
@@ -65,7 +55,7 @@ export default function HubPage() {
           ))}
           <div className="hub-card hub-card-empty">
             <span className="hub-card-icon">＋</span>
-            <span className="hub-card-name" style={{ color: '#404050' }}>추가 예정</span>
+            <span className="hub-card-empty-name">추가 예정</span>
           </div>
         </div>
       </main>

@@ -48,6 +48,66 @@ body {
   letter-spacing: 0;
 }
 
+/* ── 레이아웃 + 아이콘 레일 ── */
+.layout { display: flex; min-height: 100vh; }
+.layout-main { flex: 1; min-width: 0; }
+.icon-rail {
+  width: 52px; flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 12px 0; gap: 4px;
+  background: var(--color-bg-surface);
+  border-right: 1px solid var(--color-border-subtle);
+  position: sticky; top: 0; height: 100vh;
+}
+.rail-logo {
+  background: none; border: none; cursor: pointer;
+  color: var(--color-accent); padding: 8px; margin-bottom: 12px;
+  display: flex; border-radius: 8px;
+}
+.rail-tools { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.rail-item {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 9px;
+  background: none; border: none; cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: color 150ms, background 150ms;
+}
+.rail-item:hover:not(.disabled) { color: var(--color-text-primary); background: var(--color-bg-hover); }
+.rail-item.active { color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
+.rail-item.active::before {
+  content: ''; position: absolute; left: -7px; width: 2px; height: 18px;
+  border-radius: 2px; background: var(--color-accent);
+}
+.rail-item.disabled { opacity: 0.35; cursor: not-allowed; }
+.rail-logout { margin-top: auto; }
+
+/* ── 커맨드 팔레트 ── */
+.cmdk {
+  position: fixed; top: 20vh; left: 50%; transform: translateX(-50%);
+  width: 90%; max-width: 480px; z-index: 100;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 12px; overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+.cmdk [cmdk-input] {
+  width: 100%; padding: 14px 16px; font-size: 14px;
+  background: transparent; border: none; outline: none;
+  color: var(--color-text-primary); font-family: inherit;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.cmdk [cmdk-list] { max-height: 320px; overflow-y: auto; padding: 6px; }
+.cmdk [cmdk-group-heading] {
+  font-size: 11px; color: var(--color-text-faint); padding: 8px 10px 4px;
+}
+.cmdk [cmdk-item] {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: 8px; font-size: 13px;
+  color: var(--color-text-primary); cursor: pointer;
+}
+.cmdk [cmdk-item][data-selected="true"] { background: var(--color-bg-hover); }
+.cmdk [cmdk-empty] { padding: 16px; font-size: 13px; color: var(--color-text-secondary); text-align: center; }
+
 /* ── 비밀번호 게이트 ── */
 .gate-wrapper {
   min-height: 100vh;
@@ -795,51 +855,6 @@ body {
 .hub-card-desc {
   font-size: 12px;
   color: var(--color-text-secondary);
-}
-
-/* ── 툴 내부 공통 헤더 추가 스타일 ── */
-.hub-back-btn {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 6px;
-  transition: color 0.15s;
-  font-family: inherit;
-}
-
-.hub-back-btn:hover {
-  color: var(--color-text-primary);
-}
-
-.hub-divider {
-  color: var(--color-border-strong);
-  font-size: 14px;
-}
-
-.hub-logout-btn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  background: none;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 6px;
-  padding: 5px 10px;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-  font-family: inherit;
-}
-
-.hub-logout-btn:hover {
-  color: var(--color-text-primary);
-  border-color: var(--color-border-strong);
 }
 
 /* ── Grafana 리포트 ── */
