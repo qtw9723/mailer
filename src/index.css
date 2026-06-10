@@ -941,18 +941,26 @@ body {
 .spin { animation: grafana-spin 1s linear infinite; }
 @keyframes grafana-spin { to { transform: rotate(360deg); } }
 
-/* ── 준비 중 빈 상태 ── */
-.coming-soon {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 100px 24px;
-  text-align: center;
+/* ── 챗봇 모니터링 ── */
+.scenario-steps { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.scenario-step { display: flex; align-items: center; gap: 8px; }
+.scenario-step .form-input { flex: 1; min-width: 0; }
+.scenario-step-num { font-size: 12px; color: var(--color-text-faint); width: 14px; text-align: right; flex-shrink: 0; }
+.scenario-arrow { color: var(--color-text-faint); flex-shrink: 0; }
+.scenario-step-remove {
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
+  background: none; border: none; cursor: pointer; color: var(--color-text-faint);
 }
-.coming-soon-icon { color: color-mix(in srgb, var(--color-accent) 50%, transparent); }
-.coming-soon-title { font-size: 16px; font-weight: 600; color: var(--color-text-primary); margin: 0; }
-.coming-soon-desc { font-size: 13px; color: var(--color-text-secondary); margin: 0; max-width: 320px; }
+.scenario-step-remove:hover { color: var(--color-status-error); background: color-mix(in srgb, var(--color-status-error) 10%, transparent); }
+.advanced-field { margin-top: 12px; }
+.bot-fail-detail {
+  margin-top: 6px; padding: 8px 10px; border-radius: 8px;
+  font-size: 12px; color: var(--color-status-error);
+  background: color-mix(in srgb, var(--color-status-error) 8%, transparent);
+  white-space: pre-wrap; word-break: break-word;
+  font-family: var(--font-mono);
+}
 
 .grafana-settings { max-width: 520px; }
 .grafana-toggle {
