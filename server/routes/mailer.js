@@ -27,7 +27,22 @@ router.get('/jobs', auth, async (_req, res) => {
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: false })
     if (error) throw error
-    res.json(data)
+
+    // 하트비트용 최근 발송 이력 병합 (best-effort — send_log 미적용 환경에서도 동작)
+    const byJob = new Map(data.map(j => [j.id, []]))
+    if (data.length) {
+      const { data: logs } = await db
+        .from('send_log')
+        .select('job_id, ok, sent_at')
+        .in('job_id', data.map(j => j.id))
+        .order('sent_at', { ascending: false })
+        .limit(Math.min(data.length * 10, 300))
+      for (const row of logs ?? []) {
+        const list = byJob.get(row.job_id)
+        if (list && list.length < 10) list.push({ ok: row.ok, sent_at: row.sent_at })
+      }
+    }
+    res.json(data.map(j => ({ ...j, recent_sends: byJob.get(j.id).reverse() })))
   } catch (e) {
     res.status(500).json({ error: e.message })
   }
@@ -155,28 +170,39 @@ router.post('/tick', async (_req, res) => {
 
     const results = await Promise.allSettled(
       due.map(async (job) => {
-        const subject = job.use_index ? `[${job.send_count + 1}] ${job.subject}` : job.subject
-
-        let sendOpts = { sender: job.sender }
-        if (job.sender_account_id) {
-          const { data: account, error: accErr } = await db
-            .from('sender_accounts')
-            .select('*')
-            .eq('id', job.sender_account_id)
-            .single()
-          if (accErr || !account) throw new Error(`Sender account not found: ${job.sender_account_id}`)
-          sendOpts = { senderEmail: account.email, senderPassword: account.app_password }
+        // 발송 이력 기록은 best-effort — 실패해도 발송 처리에 영향 없음
+        const logSend = async (ok, error = null) => {
+          try { await db.from('send_log').insert({ job_id: job.id, ok, error }) }
+          catch { /* noop */ }
         }
+        try {
+          const subject = job.use_index ? `[${job.send_count + 1}] ${job.subject}` : job.subject
 
-        for (const recipient of job.recipients) {
-          await sendMail({ ...sendOpts, to: recipient, subject, body: job.body, attachments: job.attachments })
+          let sendOpts = { sender: job.sender }
+          if (job.sender_account_id) {
+            const { data: account, error: accErr } = await db
+              .from('sender_accounts')
+              .select('*')
+              .eq('id', job.sender_account_id)
+              .single()
+            if (accErr || !account) throw new Error(`Sender account not found: ${job.sender_account_id}`)
+            sendOpts = { senderEmail: account.email, senderPassword: account.app_password }
+          }
+
+          for (const recipient of job.recipients) {
+            await sendMail({ ...sendOpts, to: recipient, subject, body: job.body, attachments: job.attachments })
+          }
+
+          const { error: updateErr } = await db
+            .from('mail_jobs')
+            .update({ last_sent_at: new Date().toISOString(), send_count: job.send_count + 1 })
+            .eq('id', job.id)
+          if (updateErr) throw updateErr
+          await logSend(true)
+        } catch (err) {
+          await logSend(false, String(err?.message ?? err).slice(0, 500))
+          throw err
         }
-
-        const { error: updateErr } = await db
-          .from('mail_jobs')
-          .update({ last_sent_at: new Date().toISOString(), send_count: job.send_count + 1 })
-          .eq('id', job.id)
-        if (updateErr) throw updateErr
       })
     )
 
