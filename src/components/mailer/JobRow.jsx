@@ -3,7 +3,7 @@ import { Pencil, Trash2, Copy, GripVertical, ChevronDown, ChevronUp, RotateCcw }
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { nextSendAt, formatNextSend } from '../../lib/datetime.js'
-import HeartbeatBar from './HeartbeatBar.jsx'
+import HeartbeatBar from '../shared/HeartbeatBar.jsx'
 import MoreMenu from '../shared/MoreMenu.jsx'
 
 function intervalLabel(minutes) {
