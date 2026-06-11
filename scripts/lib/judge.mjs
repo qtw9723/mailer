@@ -1,3 +1,9 @@
+// 시나리오 스텝 정규화: type 없는 구버전 스텝은 say로 간주
+export function normalizeStep(step) {
+  const type = step.type === 'click' ? 'click' : 'say'
+  return { type, text: type === 'click' ? step.click : step.say, expect: step.expect }
+}
+
 // 시나리오 스텝 판정: 페이지 텍스트에 기대 키워드가 노출되었는가
 export function judgeStep(pageText, expectKeyword) {
   if (pageText.includes(expectKeyword)) return { ok: true }
