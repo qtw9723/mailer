@@ -1,5 +1,128 @@
 // server/routes/chatbot.js
 import { Router } from 'express'
+import db from '../db.js'
+
 const router = Router()
-router.get('/', (_req, res) => res.json({ status: 'not implemented' }))
+
+const ALLOWED_BOT_PATCH_FIELDS = new Set([
+  'name', 'url', 'scenario', 'input_selector', 'enabled', 'sort_order',
+])
+
+function auth(req, res, next) {
+  if (req.headers['x-app-password'] !== process.env.APP_PASSWORD) {
+    return res.status(401).json({ error: 'unauthorized' })
+  }
+  next()
+}
+
+// GET /api/chatbot/bots — 봇 목록 + 최근 체크 10건(오래된순) 병합
+router.get('/bots', auth, async (_req, res) => {
+  try {
+    const { data, error } = await db
+      .from('chatbots')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true })
+    if (error) throw error
+
+    // 하트비트용 최근 체크 이력 병합 (best-effort — 테이블 미적용 환경에서도 동작)
+    const byBot = new Map(data.map(b => [b.id, []]))
+    if (data.length) {
+      const { data: logs } = await db
+        .from('chatbot_check_log')
+        .select('chatbot_id, ok, detail, duration_ms, checked_at')
+        .in('chatbot_id', data.map(b => b.id))
+        .order('checked_at', { ascending: false })
+        .limit(Math.min(data.length * 10, 300))
+      for (const row of logs ?? []) {
+        const list = byBot.get(row.chatbot_id)
+        if (list && list.length < 10) {
+          list.push({ ok: row.ok, detail: row.detail, duration_ms: row.duration_ms, checked_at: row.checked_at })
+        }
+      }
+    }
+    res.json(data.map(b => ({ ...b, recent_checks: byBot.get(b.id).reverse() })))
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// POST /api/chatbot/bots
+router.post('/bots', auth, async (req, res) => {
+  const { name, url, scenario, input_selector } = req.body
+  try {
+    const { data, error } = await db
+      .from('chatbots')
+      .insert({ name, url, scenario: scenario ?? [], input_selector: input_selector || null })
+      .select()
+      .single()
+    if (error) throw error
+    res.status(201).json(data)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// PATCH /api/chatbot/bots/:id
+router.patch('/bots/:id', auth, async (req, res) => {
+  const keys = Object.keys(req.body).filter(k => ALLOWED_BOT_PATCH_FIELDS.has(k))
+  if (keys.length === 0) return res.status(400).json({ error: 'no valid fields' })
+  const updateObj = Object.fromEntries(keys.map(k => [k, req.body[k]]))
+  try {
+    const { data, error } = await db
+      .from('chatbots')
+      .update(updateObj)
+      .eq('id', req.params.id)
+      .select()
+    if (error) throw error
+    if (!data?.length) return res.status(404).json({ error: 'not found' })
+    res.json(data[0])
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// DELETE /api/chatbot/bots/:id
+router.delete('/bots/:id', auth, async (req, res) => {
+  try {
+    const { error } = await db.from('chatbots').delete().eq('id', req.params.id)
+    if (error) throw error
+    res.json({ success: true })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// GET /api/chatbot/settings
+router.get('/settings', auth, async (_req, res) => {
+  try {
+    const { data, error } = await db
+      .from('chatbot_monitor_settings')
+      .select('*')
+      .eq('id', 1)
+      .single()
+    if (error) throw error
+    res.json(data)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// PUT /api/chatbot/settings
+router.put('/settings', auth, async (req, res) => {
+  const { recipients } = req.body
+  try {
+    const { data, error } = await db
+      .from('chatbot_monitor_settings')
+      .update({ recipients: recipients ?? [], updated_at: new Date().toISOString() })
+      .eq('id', 1)
+      .select()
+      .single()
+    if (error) throw error
+    res.json(data)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 export default router
