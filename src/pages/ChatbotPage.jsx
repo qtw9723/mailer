@@ -1,9 +1,9 @@
 // src/pages/ChatbotPage.jsx
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus } from 'lucide-react'
+import { Plus, Play } from 'lucide-react'
 import { toast } from 'sonner'
-import { getBots, createBot, updateBot, deleteBot } from '../lib/api/chatbot.js'
+import { getBots, createBot, updateBot, deleteBot, runCheck } from '../lib/api/chatbot.js'
 import { getCookie, clearCookie } from '../lib/auth.js'
 import AppHeader from '../components/shared/AppHeader.jsx'
 import ConfirmDialog from '../components/shared/ConfirmDialog.jsx'
@@ -22,6 +22,7 @@ export default function ChatbotPage() {
   const [saving, setSaving] = useState(false)
   const [confirm, setConfirm] = useState(null)
   const [togglingIds, setTogglingIds] = useState(new Set())
+  const [running, setRunning] = useState(false)
 
   const refresh = useCallback(async () => {
     try {
@@ -71,6 +72,22 @@ export default function ChatbotPage() {
     }
   }
 
+  const handleRunCheck = async (bot = null) => {
+    setRunning(true)
+    try {
+      await runCheck(bot?.id ?? null, password)
+      toast.success(
+        bot ? `"${bot.name}" 테스트를 요청했습니다` : '전체 체크를 요청했습니다',
+        { description: '약 2~3분 후 새로고침하면 결과가 반영됩니다' },
+      )
+    } catch (e) {
+      if (e.message.includes('GITHUB_TOKEN')) toast.error('GitHub 토큰이 설정되지 않았습니다', { description: '관리자에게 GITHUB_TOKEN 환경변수 설정을 요청하세요' })
+      else toast.error('실행 요청에 실패했습니다')
+    } finally {
+      setRunning(false)
+    }
+  }
+
   const requestDelete = (bot) => setConfirm({
     title: '챗봇 삭제',
     message: `"${bot.name}"을(를) 삭제할까요? 체크 이력도 함께 삭제됩니다.`,
@@ -91,9 +108,14 @@ export default function ChatbotPage() {
     <div className="app">
       <AppHeader toolName="챗봇 모니터링">
         {tab === 'bots' && (
-          <button className="app-new-btn" onClick={() => { setEditBot(null); setShowModal(true) }}>
-            <Plus size={14} /> 챗봇 등록
-          </button>
+          <>
+            <button className="app-new-btn" onClick={() => handleRunCheck()} disabled={running || bots.length === 0}>
+              <Play size={14} /> {running ? '요청 중…' : '전체 체크'}
+            </button>
+            <button className="app-new-btn" onClick={() => { setEditBot(null); setShowModal(true) }}>
+              <Plus size={14} /> 챗봇 등록
+            </button>
+          </>
         )}
       </AppHeader>
 
@@ -126,6 +148,7 @@ export default function ChatbotPage() {
                 onToggle={() => handleToggle(bot)}
                 onEdit={() => { setEditBot(bot); setShowModal(true) }}
                 onDelete={() => requestDelete(bot)}
+                onRunCheck={() => handleRunCheck(bot)}
               />
             ))
           )}
