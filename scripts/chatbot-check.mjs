@@ -8,15 +8,21 @@ import { sendMail } from '../server/smtp.js'
 
 const HUB_URL = process.env.HUB_URL ?? 'https://mailer-sangjuns-projects-bbf3bb9f.vercel.app'
 const STEP_TIMEOUT_MS = 60_000
-const INPUT_SELECTORS = ['textarea', 'input[type="text"]', '[contenteditable="true"]']
+// 1순위: 사내 챗봇 솔루션(cogi)의 입력창 id. 이후 일반 휴리스틱 순.
+const INPUT_SELECTORS = ['#chat-input-text', 'textarea', 'input[type="text"]', 'input:not([type])', '[contenteditable="true"]']
 
 const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
 
 async function findInput(page, override) {
   const candidates = override ? [override, ...INPUT_SELECTORS] : INPUT_SELECTORS
-  for (const sel of candidates) {
+  // SPA 렌더링 지연 대비: 후보별로 잠깐 기다리며 탐색 (1순위 후보에 가장 긴 대기)
+  for (const [i, sel] of candidates.entries()) {
     const loc = page.locator(sel).first()
-    if (await loc.isVisible().catch(() => false)) return loc
+    const found = await loc
+      .waitFor({ state: 'visible', timeout: i === 0 ? 10_000 : 3_000 })
+      .then(() => true)
+      .catch(() => false)
+    if (found) return loc
   }
   return null
 }
