@@ -1,5 +1,20 @@
 import { describe, it, expect } from 'vitest'
-import { judgeStep, buildFailureMail } from './judge.mjs'
+import { judgeStep, buildFailureMail, normalizeStep } from './judge.mjs'
+
+describe('normalizeStep', () => {
+  it('type 없는 기존 스텝은 say로 간주 (하위 호환)', () => {
+    expect(normalizeStep({ say: '안녕', expect: '도와' }))
+      .toEqual({ type: 'say', text: '안녕', expect: '도와' })
+  })
+  it('say 타입', () => {
+    expect(normalizeStep({ type: 'say', say: '예약', expect: '날짜' }))
+      .toEqual({ type: 'say', text: '예약', expect: '날짜' })
+  })
+  it('click 타입은 click 필드를 text로', () => {
+    expect(normalizeStep({ type: 'click', click: '예약하기', expect: '날짜를 선택' }))
+      .toEqual({ type: 'click', text: '예약하기', expect: '날짜를 선택' })
+  })
+})
 
 describe('judgeStep', () => {
   it('키워드가 페이지 텍스트에 있으면 ok', () => {

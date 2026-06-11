@@ -3,7 +3,7 @@
 import { chromium } from 'playwright'
 import { createClient } from '@supabase/supabase-js'
 import { mkdir } from 'node:fs/promises'
-import { judgeStep, buildFailureMail } from './lib/judge.mjs'
+import { judgeStep, buildFailureMail, normalizeStep } from './lib/judge.mjs'
 import { sendMail } from '../server/smtp.js'
 
 const HUB_URL = process.env.HUB_URL ?? 'https://mailer-sangjuns-projects-bbf3bb9f.vercel.app'
@@ -30,6 +30,24 @@ async function findInput(page, override) {
   return null
 }
 
+// 텍스트로 클릭 대상(버튼/링크/퀵리플라이) 탐색 — 모든 프레임 순회, 15초 재시도
+async function findClickable(page, text) {
+  const deadline = Date.now() + 15_000
+  while (Date.now() < deadline) {
+    for (const frame of page.frames()) {
+      for (const loc of [
+        frame.getByRole('button', { name: text }).first(),
+        frame.getByText(text, { exact: true }).first(),
+        frame.getByText(text).first(),
+      ]) {
+        if (await loc.isVisible().catch(() => false)) return { target: loc, frame }
+      }
+    }
+    await page.waitForTimeout(500)
+  }
+  return null
+}
+
 async function checkBot(browser, bot) {
   const started = Date.now()
   const page = await browser.newPage()
@@ -37,14 +55,24 @@ async function checkBot(browser, bot) {
     await page.goto(bot.url, { waitUntil: 'networkidle', timeout: 30_000 })
       .catch(err => { throw new Error(`goto_failed: ${err.message.slice(0, 120)}`) })
 
-    for (const [i, step] of bot.scenario.entries()) {
-      const found = await findInput(page, bot.input_selector)
-      if (!found) throw new Error(`input_not_found: 스텝 ${i + 1}에서 입력창을 찾지 못함`)
-      const { input, frame } = found
-      await input.fill(step.say)
-      await input.press('Enter')
+    for (const [i, rawStep] of bot.scenario.entries()) {
+      const step = normalizeStep(rawStep)
+      let frame
 
-      // 응답 검사도 입력창과 같은 프레임에서 수행
+      if (step.type === 'click') {
+        const found = await findClickable(page, step.text)
+        if (!found) throw new Error(`button_not_found: 스텝 ${i + 1}에서 "${step.text}" 버튼을 찾지 못함`)
+        frame = found.frame
+        await found.target.click()
+      } else {
+        const found = await findInput(page, bot.input_selector)
+        if (!found) throw new Error(`input_not_found: 스텝 ${i + 1}에서 입력창을 찾지 못함`)
+        frame = found.frame
+        await found.input.fill(step.text)
+        await found.input.press('Enter')
+      }
+
+      // 응답 검사는 액션과 같은 프레임에서 수행
       const appeared = await frame
         .getByText(step.expect)
         .first()
