@@ -30,16 +30,20 @@ async function findInput(page, override) {
   return null
 }
 
-// 텍스트로 클릭 대상(버튼/링크/퀵리플라이) 탐색 — 모든 프레임 순회, 15초 재시도
-async function findClickable(page, text) {
+// 클릭 대상(버튼/링크/퀵리플라이) 탐색 — 모든 프레임 순회, 15초 재시도.
+// selector가 있으면 그것을 최우선, 없으면 보이는 텍스트로 탐색.
+async function findClickable(page, text, selector) {
   const deadline = Date.now() + 15_000
   while (Date.now() < deadline) {
     for (const frame of page.frames()) {
-      for (const loc of [
-        frame.getByRole('button', { name: text }).first(),
-        frame.getByText(text, { exact: true }).first(),
-        frame.getByText(text).first(),
-      ]) {
+      const locators = selector
+        ? [frame.locator(selector).first()]
+        : [
+            frame.getByRole('button', { name: text }).first(),
+            frame.getByText(text, { exact: true }).first(),
+            frame.getByText(text).first(),
+          ]
+      for (const loc of locators) {
         if (await loc.isVisible().catch(() => false)) return { target: loc, frame }
       }
     }
@@ -60,12 +64,13 @@ async function checkBot(browser, bot) {
       let frame
 
       if (step.type === 'click') {
-        const found = await findClickable(page, step.text)
-        if (!found) throw new Error(`button_not_found: 스텝 ${i + 1}에서 "${step.text}" 버튼을 찾지 못함`)
+        const found = await findClickable(page, step.text, step.selector)
+        if (!found) throw new Error(`button_not_found: 스텝 ${i + 1}에서 ${step.selector ? `셀렉터 "${step.selector}"` : `"${step.text}" 버튼`}을 찾지 못함`)
         frame = found.frame
         await found.target.click()
       } else {
-        const found = await findInput(page, bot.input_selector)
+        // 스텝별 셀렉터 > 봇 레벨 셀렉터(구버전 호환) > 기본 휴리스틱
+        const found = await findInput(page, step.selector ?? bot.input_selector)
         if (!found) throw new Error(`input_not_found: 스텝 ${i + 1}에서 입력창을 찾지 못함`)
         frame = found.frame
         await found.input.fill(step.text)

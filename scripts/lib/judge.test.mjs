@@ -4,15 +4,19 @@ import { judgeStep, buildFailureMail, normalizeStep } from './judge.mjs'
 describe('normalizeStep', () => {
   it('type 없는 기존 스텝은 say로 간주 (하위 호환)', () => {
     expect(normalizeStep({ say: '안녕', expect: '도와' }))
-      .toEqual({ type: 'say', text: '안녕', expect: '도와' })
+      .toEqual({ type: 'say', text: '안녕', expect: '도와', selector: null })
   })
   it('say 타입', () => {
     expect(normalizeStep({ type: 'say', say: '예약', expect: '날짜' }))
-      .toEqual({ type: 'say', text: '예약', expect: '날짜' })
+      .toEqual({ type: 'say', text: '예약', expect: '날짜', selector: null })
   })
   it('click 타입은 click 필드를 text로', () => {
     expect(normalizeStep({ type: 'click', click: '예약하기', expect: '날짜를 선택' }))
-      .toEqual({ type: 'click', text: '예약하기', expect: '날짜를 선택' })
+      .toEqual({ type: 'click', text: '예약하기', expect: '날짜를 선택', selector: null })
+  })
+  it('스텝별 selector는 그대로 전달, 없으면 null', () => {
+    expect(normalizeStep({ type: 'click', click: '예약', expect: '날짜', selector: '#btn-book' }).selector).toBe('#btn-book')
+    expect(normalizeStep({ say: '안녕', expect: '도와' }).selector).toBeNull()
   })
 })
 
