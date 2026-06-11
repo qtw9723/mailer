@@ -13,16 +13,19 @@ const INPUT_SELECTORS = ['#chat-input-text', 'textarea', 'input[type="text"]', '
 
 const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
 
+// 채팅 UI가 iframe 안에 있을 수 있으므로 모든 프레임을 순회하며 탐색.
+// SPA 렌더링 지연 대비 15초 동안 0.5초 간격 재시도.
 async function findInput(page, override) {
   const candidates = override ? [override, ...INPUT_SELECTORS] : INPUT_SELECTORS
-  // SPA 렌더링 지연 대비: 후보별로 잠깐 기다리며 탐색 (1순위 후보에 가장 긴 대기)
-  for (const [i, sel] of candidates.entries()) {
-    const loc = page.locator(sel).first()
-    const found = await loc
-      .waitFor({ state: 'visible', timeout: i === 0 ? 10_000 : 3_000 })
-      .then(() => true)
-      .catch(() => false)
-    if (found) return loc
+  const deadline = Date.now() + 15_000
+  while (Date.now() < deadline) {
+    for (const frame of page.frames()) {
+      for (const sel of candidates) {
+        const loc = frame.locator(sel).first()
+        if (await loc.isVisible().catch(() => false)) return { input: loc, frame }
+      }
+    }
+    await page.waitForTimeout(500)
   }
   return null
 }
@@ -35,19 +38,21 @@ async function checkBot(browser, bot) {
       .catch(err => { throw new Error(`goto_failed: ${err.message.slice(0, 120)}`) })
 
     for (const [i, step] of bot.scenario.entries()) {
-      const input = await findInput(page, bot.input_selector)
-      if (!input) throw new Error(`input_not_found: 스텝 ${i + 1}에서 입력창을 찾지 못함`)
+      const found = await findInput(page, bot.input_selector)
+      if (!found) throw new Error(`input_not_found: 스텝 ${i + 1}에서 입력창을 찾지 못함`)
+      const { input, frame } = found
       await input.fill(step.say)
       await input.press('Enter')
 
-      const appeared = await page
+      // 응답 검사도 입력창과 같은 프레임에서 수행
+      const appeared = await frame
         .getByText(step.expect)
         .first()
         .waitFor({ state: 'visible', timeout: STEP_TIMEOUT_MS })
         .then(() => true)
         .catch(() => false)
       if (!appeared) {
-        const pageText = await page.locator('body').innerText().catch(() => '')
+        const pageText = await frame.locator('body').innerText().catch(() => '')
         const verdict = judgeStep(pageText, step.expect)
         throw new Error(`timeout: 스텝 ${i + 1} ${verdict.reason}\n응답 발췌: ${verdict.excerpt ?? '(없음)'}`)
       }
