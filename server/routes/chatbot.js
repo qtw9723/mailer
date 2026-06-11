@@ -93,6 +93,34 @@ router.delete('/bots/:id', auth, async (req, res) => {
   }
 })
 
+// POST /api/chatbot/run-check — GitHub Actions 워크플로우 수동 트리거 (bot_id 있으면 해당 봇만)
+router.post('/run-check', auth, async (req, res) => {
+  if (!process.env.GITHUB_TOKEN) {
+    return res.status(503).json({ error: 'GITHUB_TOKEN이 설정되지 않았습니다. Fine-grained 토큰(Actions: write)을 환경변수에 추가하세요.' })
+  }
+  const repo = process.env.GITHUB_REPO ?? 'qtw9723/mailer'
+  const { bot_id } = req.body ?? {}
+  try {
+    const ghRes = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/chatbot-check.yml/dispatches`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'cs-smarthub',
+      },
+      body: JSON.stringify({ ref: 'main', inputs: bot_id ? { bot_id } : {} }),
+    })
+    if (!ghRes.ok) {
+      const text = await ghRes.text()
+      return res.status(502).json({ error: `GitHub dispatch 실패 (${ghRes.status}): ${text.slice(0, 200)}` })
+    }
+    res.status(202).json({ triggered: true })
+  } catch (e) {
+    res.status(502).json({ error: e.message })
+  }
+})
+
 // GET /api/chatbot/settings
 router.get('/settings', auth, async (_req, res) => {
   try {

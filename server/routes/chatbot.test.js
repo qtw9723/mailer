@@ -101,6 +101,48 @@ describe('DELETE /api/chatbot/bots/:id', () => {
   })
 })
 
+describe('POST /api/chatbot/run-check', () => {
+  it('인증 없으면 401', async () => {
+    expect((await request(app).post('/api/chatbot/run-check').send({})).status).toBe(401)
+  })
+
+  it('GITHUB_TOKEN 미설정이면 503 + 안내', async () => {
+    delete process.env.GITHUB_TOKEN
+    const res = await request(app).post('/api/chatbot/run-check').set(AUTH).send({})
+    expect(res.status).toBe(503)
+    expect(res.body.error).toContain('GITHUB_TOKEN')
+  })
+
+  it('전체 실행: dispatch API 호출 후 202', async () => {
+    process.env.GITHUB_TOKEN = 'ghp_test'
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({ ok: true, status: 204 })
+    const res = await request(app).post('/api/chatbot/run-check').set(AUTH).send({})
+    expect(res.status).toBe(202)
+    const [url, opts] = fetchSpy.mock.calls[0]
+    expect(url).toContain('/actions/workflows/chatbot-check.yml/dispatches')
+    expect(JSON.parse(opts.body)).toEqual({ ref: 'main', inputs: {} })
+    fetchSpy.mockRestore()
+  })
+
+  it('개별 실행: bot_id를 inputs로 전달', async () => {
+    process.env.GITHUB_TOKEN = 'ghp_test'
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({ ok: true, status: 204 })
+    const res = await request(app).post('/api/chatbot/run-check').set(AUTH).send({ bot_id: 'b1' })
+    expect(res.status).toBe(202)
+    const [, opts] = fetchSpy.mock.calls[0]
+    expect(JSON.parse(opts.body)).toEqual({ ref: 'main', inputs: { bot_id: 'b1' } })
+    fetchSpy.mockRestore()
+  })
+
+  it('GitHub API 실패 시 502', async () => {
+    process.env.GITHUB_TOKEN = 'ghp_test'
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({ ok: false, status: 401, text: async () => 'Bad credentials' })
+    const res = await request(app).post('/api/chatbot/run-check').set(AUTH).send({})
+    expect(res.status).toBe(502)
+    fetchSpy.mockRestore()
+  })
+})
+
 describe('settings', () => {
   it('GET: 단일 행 반환', async () => {
     mockFrom.mockReturnValueOnce(mockQuery({ data: { id: 1, recipients: ['a@b.c'] }, error: null }))

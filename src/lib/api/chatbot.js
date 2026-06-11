@@ -25,3 +25,4 @@ export const updateBot = (id, patch, pw) => request('PATCH', `/bots/${id}`, patc
 export const deleteBot = (id, pw) => request('DELETE', `/bots/${id}`, null, pw)
 export const getChatbotSettings = (pw) => request('GET', '/settings', null, pw)
 export const updateChatbotSettings = (body, pw) => request('PUT', '/settings', body, pw)
+export const runCheck = (botId, pw) => request('POST', '/run-check', botId ? { bot_id: botId } : {}, pw)

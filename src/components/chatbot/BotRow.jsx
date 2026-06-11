@@ -1,9 +1,9 @@
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2, Play } from 'lucide-react'
 import HeartbeatBar from '../shared/HeartbeatBar.jsx'
 import MoreMenu from '../shared/MoreMenu.jsx'
 import { fmtKst } from '../../lib/datetime.js'
 
-export default function BotRow({ bot, onToggle, onEdit, onDelete, toggling }) {
+export default function BotRow({ bot, onToggle, onEdit, onDelete, onRunCheck, toggling }) {
   const checks = bot.recent_checks ?? []
   const last = checks[checks.length - 1]
   const lastFailed = last && !last.ok
@@ -36,6 +36,7 @@ export default function BotRow({ bot, onToggle, onEdit, onDelete, toggling }) {
           <span className="switch-knob" />
         </button>
         <MoreMenu label={`${bot.name} 메뉴`} items={[
+          { icon: Play, text: '지금 테스트', onClick: onRunCheck },
           { icon: Pencil, text: '수정', onClick: onEdit },
           { icon: Trash2, text: '삭제', danger: true, onClick: onDelete },
         ]} />

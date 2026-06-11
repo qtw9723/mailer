@@ -73,7 +73,9 @@ async function notifyFailures(failures) {
   console.log(`실패 알림 메일 발송: ${recipients.length}명`)
 }
 
-const { data: bots, error } = await db.from('chatbots').select('*').eq('enabled', true)
+let query = db.from('chatbots').select('*').eq('enabled', true)
+if (process.env.BOT_ID) query = query.eq('id', process.env.BOT_ID)
+const { data: bots, error } = await query
 if (error) { console.error('봇 목록 조회 실패:', error.message); process.exit(1) }
 
 const targets = (bots ?? []).filter(b => Array.isArray(b.scenario) && b.scenario.length > 0)
@@ -91,5 +93,6 @@ for (const bot of targets) {
   if (!result.ok) failures.push({ name: bot.name, detail: result.detail })
 }
 await browser.close()
-await notifyFailures(failures)
+if (process.env.BOT_ID) console.log('단건 테스트 실행 — 메일 알림 생략')
+else await notifyFailures(failures)
 console.log(`완료: 성공 ${targets.length - failures.length} / 실패 ${failures.length}`)
