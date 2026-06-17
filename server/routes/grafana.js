@@ -26,6 +26,29 @@ function lagFrom(settings) {
   return Number.isInteger(v) && v >= 0 && v <= 24 ? v : LOG_INDEX_LAG_HOURS
 }
 
+const ARRAY_MAX = 50
+const QUERY_MAX = 2000
+const LABEL_MAX = 200
+
+function isStr(v, max) {
+  return typeof v === 'string' && v.trim().length > 0 && v.length <= max
+}
+function isValidMetricArray(arr) {
+  if (!Array.isArray(arr) || arr.length > ARRAY_MAX) return false
+  return arr.every((m) =>
+    m && typeof m === 'object' &&
+    isStr(m.label, LABEL_MAX) && isStr(m.query, QUERY_MAX) &&
+    typeof m.threshold === 'number' && Number.isFinite(m.threshold) &&
+    typeof m.enabled === 'boolean')
+}
+function isValidLogArray(arr) {
+  if (!Array.isArray(arr) || arr.length > ARRAY_MAX) return false
+  return arr.every((q) =>
+    q && typeof q === 'object' &&
+    isStr(q.label, LABEL_MAX) && isStr(q.query, QUERY_MAX) &&
+    typeof q.enabled === 'boolean')
+}
+
 // GET /api/grafana/report — 웹 on-demand 조회 (설정의 쿼리·오프셋 적용)
 router.get('/report', auth, async (_req, res) => {
   let settings = null
@@ -65,8 +88,19 @@ router.put('/settings', auth, async (req, res) => {
   const cleanRecipients = Array.isArray(recipients)
     ? recipients.map((s) => String(s).trim()).filter(Boolean)
     : []
+
+  const payload = { recipients: cleanRecipients, send_hour, enabled: !!enabled, log_lag_hours }
+  if (req.body.metrics !== undefined) {
+    if (!isValidMetricArray(req.body.metrics)) return res.status(400).json({ error: 'invalid metrics' })
+    payload.metrics = req.body.metrics
+  }
+  if (req.body.log_queries !== undefined) {
+    if (!isValidLogArray(req.body.log_queries)) return res.status(400).json({ error: 'invalid log_queries' })
+    payload.log_queries = req.body.log_queries
+  }
+
   try {
-    const saved = await saveSettings({ recipients: cleanRecipients, send_hour, enabled: !!enabled, log_lag_hours })
+    const saved = await saveSettings(payload)
     res.json(saved)
   } catch (e) {
     res.status(500).json({ error: e.message })

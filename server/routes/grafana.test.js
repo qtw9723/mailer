@@ -122,6 +122,42 @@ describe('PUT /api/grafana/settings', () => {
       .set('x-app-password', 'test-pw').send({ recipients: ['a@x.com'], send_hour: 8, enabled: true, log_lag_hours: 2 })
     expect(saveSettings).toHaveBeenCalledWith({ recipients: ['a@x.com'], send_hour: 8, enabled: true, log_lag_hours: 2 })
   })
+  it('정상 metrics/log_queries 저장 시 saveSettings에 포함', async () => {
+    const M = [{ label: 'CPU', query: 'up', threshold: 80, enabled: true }]
+    const L = [{ label: 'soe', query: 'error', enabled: false }]
+    saveSettings.mockResolvedValueOnce({ id: 1, recipients: ['a@x.com'], send_hour: 8, enabled: true, log_lag_hours: 3, metrics: M, log_queries: L })
+    const res = await request(app).put('/api/grafana/settings')
+      .set('x-app-password', 'test-pw')
+      .send({ recipients: ['a@x.com'], send_hour: 8, enabled: true, metrics: M, log_queries: L })
+    expect(res.status).toBe(200)
+    expect(saveSettings).toHaveBeenCalledWith({ recipients: ['a@x.com'], send_hour: 8, enabled: true, log_lag_hours: 3, metrics: M, log_queries: L })
+  })
+  it('metric threshold가 숫자 아니면 400', async () => {
+    const res = await request(app).put('/api/grafana/settings').set('x-app-password', 'test-pw')
+      .send({ recipients: [], send_hour: 8, enabled: true, metrics: [{ label: 'x', query: 'q', threshold: 'NaN', enabled: true }] })
+    expect(res.status).toBe(400)
+  })
+  it('metric label 빈 문자열이면 400', async () => {
+    const res = await request(app).put('/api/grafana/settings').set('x-app-password', 'test-pw')
+      .send({ recipients: [], send_hour: 8, enabled: true, metrics: [{ label: '  ', query: 'q', threshold: 1, enabled: true }] })
+    expect(res.status).toBe(400)
+  })
+  it('log query 빈 문자열이면 400', async () => {
+    const res = await request(app).put('/api/grafana/settings').set('x-app-password', 'test-pw')
+      .send({ recipients: [], send_hour: 8, enabled: true, log_queries: [{ label: 'soe', query: '', enabled: true }] })
+    expect(res.status).toBe(400)
+  })
+  it('metrics가 배열 아니면 400', async () => {
+    const res = await request(app).put('/api/grafana/settings').set('x-app-password', 'test-pw')
+      .send({ recipients: [], send_hour: 8, enabled: true, metrics: { not: 'array' } })
+    expect(res.status).toBe(400)
+  })
+  it('항목 수 상한(50) 초과면 400', async () => {
+    const many = Array.from({ length: 51 }, (_, i) => ({ label: `m${i}`, query: 'q', threshold: 1, enabled: true }))
+    const res = await request(app).put('/api/grafana/settings').set('x-app-password', 'test-pw')
+      .send({ recipients: [], send_hour: 8, enabled: true, metrics: many })
+    expect(res.status).toBe(400)
+  })
 })
 
 describe('GET /api/grafana/tick', () => {
