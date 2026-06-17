@@ -90,7 +90,8 @@ export async function gatherReportData(metrics, logQueries, lagHours = LOG_INDEX
   const activeLogs = activeQueries(logQueries)
   let logs
   try {
-    const res = await queryElasticsearch(activeLogs, LOG_HOURS, LOG_FETCH, lagHours)
+    // 활성 로그 쿼리가 없으면 _msearch 호출을 건너뛴다(빈 요청 방지). 메트릭 경로(Promise.all([]))와 대칭.
+    const res = activeLogs.length ? await queryElasticsearch(activeLogs, LOG_HOURS, LOG_FETCH, lagHours) : {}
     logs = activeLogs.map((lq) => ({
       app: lq.label,
       count: res[lq.label]?.count ?? 0,
