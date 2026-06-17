@@ -32,3 +32,14 @@ export async function updateSettings(body, password) {
   if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`)
   return res.json()
 }
+
+export async function testQuery(body, password) {
+  const res = await fetch(`${BASE}/api/grafana/test-query`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-app-password': password ?? '' },
+    body: JSON.stringify(body),
+  })
+  if (res.status === 401) throw new Error('UNAUTHORIZED')
+  if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`)
+  return res.json()
+}

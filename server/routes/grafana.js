@@ -1,11 +1,11 @@
 // server/routes/grafana.js
 import { Router } from 'express'
-import { gatherReportData } from '../grafana/client.js'
+import { gatherReportData, queryPrometheus, queryElasticsearch } from '../grafana/client.js'
 import { buildReport, buildEmailHtml } from '../grafana/report.js'
 import { sendReportEmail } from '../grafana/email.js'
 import { getSettings, saveSettings, markSent } from '../grafana/settings.js'
 import { shouldSend, kstDateString } from '../grafana/schedule.js'
-import { LOG_INDEX_LAG_HOURS } from '../grafana/config.js'
+import { LOG_INDEX_LAG_HOURS, LOG_HOURS, LOG_FETCH, DEFAULT_METRICS, DEFAULT_LOG_QUERIES } from '../grafana/config.js'
 
 const router = Router()
 
@@ -26,12 +26,38 @@ function lagFrom(settings) {
   return Number.isInteger(v) && v >= 0 && v <= 24 ? v : LOG_INDEX_LAG_HOURS
 }
 
-// GET /api/grafana/report — 웹 on-demand 조회 (설정 오프셋 적용)
+const ARRAY_MAX = 50
+const QUERY_MAX = 2000
+const LABEL_MAX = 200
+
+function isStr(v, max) {
+  return typeof v === 'string' && v.trim().length > 0 && v.length <= max
+}
+function isValidMetricArray(arr) {
+  if (!Array.isArray(arr) || arr.length > ARRAY_MAX) return false
+  return arr.every((m) =>
+    m && typeof m === 'object' &&
+    isStr(m.label, LABEL_MAX) && isStr(m.query, QUERY_MAX) &&
+    typeof m.threshold === 'number' && Number.isFinite(m.threshold) &&
+    typeof m.enabled === 'boolean')
+}
+function isValidLogArray(arr) {
+  if (!Array.isArray(arr) || arr.length > ARRAY_MAX) return false
+  return arr.every((q) =>
+    q && typeof q === 'object' &&
+    isStr(q.label, LABEL_MAX) && isStr(q.query, QUERY_MAX) &&
+    typeof q.enabled === 'boolean')
+}
+
+// GET /api/grafana/report — 웹 on-demand 조회 (설정의 쿼리·오프셋 적용)
 router.get('/report', auth, async (_req, res) => {
-  let lagHours = LOG_INDEX_LAG_HOURS
-  try { lagHours = lagFrom(await getSettings()) } catch { /* 설정 조회 실패 시 기본 오프셋 */ }
+  let settings = null
+  try { settings = await getSettings() } catch { /* 설정 조회 실패 시 기본값 */ }
+  const lagHours = lagFrom(settings)
+  const metrics = settings?.metrics ?? DEFAULT_METRICS
+  const logQueries = settings?.log_queries ?? DEFAULT_LOG_QUERIES
   try {
-    const report = buildReport(await gatherReportData(lagHours))
+    const report = buildReport(await gatherReportData(metrics, logQueries, lagHours))
     res.json(report)
   } catch (e) {
     res.status(502).json({ error: e.message })
@@ -62,8 +88,19 @@ router.put('/settings', auth, async (req, res) => {
   const cleanRecipients = Array.isArray(recipients)
     ? recipients.map((s) => String(s).trim()).filter(Boolean)
     : []
+
+  const payload = { recipients: cleanRecipients, send_hour, enabled: !!enabled, log_lag_hours }
+  if (req.body.metrics !== undefined) {
+    if (!isValidMetricArray(req.body.metrics)) return res.status(400).json({ error: 'invalid metrics' })
+    payload.metrics = req.body.metrics
+  }
+  if (req.body.log_queries !== undefined) {
+    if (!isValidLogArray(req.body.log_queries)) return res.status(400).json({ error: 'invalid log_queries' })
+    payload.log_queries = req.body.log_queries
+  }
+
   try {
-    const saved = await saveSettings({ recipients: cleanRecipients, send_hour, enabled: !!enabled, log_lag_hours })
+    const saved = await saveSettings(payload)
     res.json(saved)
   } catch (e) {
     res.status(500).json({ error: e.message })
@@ -86,12 +123,30 @@ router.get('/tick', async (req, res) => {
     const recipients = settings.recipients?.length ? settings.recipients : envRecipients()
     if (recipients.length === 0) return res.json({ sent: false, reason: 'no-recipients' })
 
-    const report = buildReport(await gatherReportData(lagFrom(settings)))
+    const report = buildReport(await gatherReportData(settings.metrics, settings.log_queries, lagFrom(settings)))
     await sendReportEmail(buildEmailHtml(report), recipients)
     await markSent(kstDateString(now))
     res.json({ sent: true, alerts: report.summary.alerts })
   } catch (e) {
     res.status(500).json({ error: e.message })
+  }
+})
+
+// POST /api/grafana/test-query — 단일 쿼리 실호출 검증(등록 게이트용)
+router.post('/test-query', auth, async (req, res) => {
+  const { type, query } = req.body
+  if ((type !== 'metric' && type !== 'log') || typeof query !== 'string' || !query.trim() || query.length > 2000) {
+    return res.status(400).json({ error: 'invalid request' })
+  }
+  try {
+    if (type === 'metric') {
+      const value = await queryPrometheus(query)
+      return res.json({ ok: true, value })
+    }
+    const result = await queryElasticsearch([{ label: '_test', query }], LOG_HOURS, LOG_FETCH, 0)
+    return res.json({ ok: true, count: result?._test?.count ?? 0 })
+  } catch (e) {
+    return res.json({ ok: false, error: e.message })
   }
 })
 
