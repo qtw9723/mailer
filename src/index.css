@@ -1021,3 +1021,21 @@ body {
   .app-header { padding: 0 16px; }
   .job-list, .sender-page { padding: 0 16px; }
 }
+
+/* Grafana 쿼리 편집기 */
+.query-list { display: flex; flex-direction: column; gap: 10px; }
+.query-row { border: 1px solid var(--color-border, #ddd); border-radius: 6px; padding: 10px; }
+.query-fields { display: flex; gap: 8px; flex-wrap: wrap; }
+.query-fields .form-input { flex: 0 0 auto; }
+.query-fields .query-wide { flex: 1 1 320px; min-width: 220px; }
+.query-controls { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.query-enabled { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--color-text-secondary); }
+.query-test-btn { padding: 4px 10px; border-radius: 4px; border: 1px solid var(--color-accent); background: transparent; color: var(--color-accent); cursor: pointer; font-size: 13px; }
+.query-test-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.query-badge { font-size: 12px; font-weight: 600; }
+.query-badge.ok { color: var(--color-status-ok); }
+.query-badge.fail { color: var(--color-status-error); }
+.query-badge.todo { color: var(--color-text-faint); }
+.query-del { margin-left: auto; background: transparent; border: none; color: var(--color-text-faint); cursor: pointer; display: flex; align-items: center; }
+.query-del:hover { color: var(--color-status-error); }
+.query-add { margin-top: 10px; padding: 6px 12px; border-radius: 4px; border: 1px dashed var(--color-border, #ccc); background: transparent; color: var(--color-text-secondary); cursor: pointer; font-size: 13px; }
