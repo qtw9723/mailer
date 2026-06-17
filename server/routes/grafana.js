@@ -143,7 +143,10 @@ router.post('/test-query', auth, async (req, res) => {
       const value = await queryPrometheus(query)
       return res.json({ ok: true, value })
     }
-    const result = await queryElasticsearch([{ label: '_test', query }], LOG_HOURS, LOG_FETCH, 0)
+    // 리포트와 동일한 적재지연 보정(log_lag_hours)을 적용해, 테스트 건수가 리포트 실제 집계치와 일치하게 한다.
+    let lagHours = LOG_INDEX_LAG_HOURS
+    try { lagHours = lagFrom(await getSettings()) } catch { /* 설정 조회 실패 시 기본 오프셋 */ }
+    const result = await queryElasticsearch([{ label: '_test', query }], LOG_HOURS, LOG_FETCH, lagHours)
     return res.json({ ok: true, count: result?._test?.count ?? 0 })
   } catch (e) {
     return res.json({ ok: false, error: e.message })
