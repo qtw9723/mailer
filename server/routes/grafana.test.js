@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import request from 'supertest'
 import express from 'express'
 
-vi.mock('../grafana/client.js', () => ({ gatherReportData: vi.fn() }))
+vi.mock('../grafana/client.js', () => ({ gatherReportData: vi.fn(), queryPrometheus: vi.fn(), queryElasticsearch: vi.fn() }))
 vi.mock('../grafana/email.js', () => ({ sendReportEmail: vi.fn() }))
 vi.mock('../grafana/settings.js', () => ({
   getSettings: vi.fn(),
@@ -11,7 +11,8 @@ vi.mock('../grafana/settings.js', () => ({
   markSent: vi.fn(),
 }))
 
-import { gatherReportData } from '../grafana/client.js'
+import { gatherReportData, queryPrometheus, queryElasticsearch } from '../grafana/client.js'
+import { LOG_HOURS, LOG_FETCH } from '../grafana/config.js'
 import { sendReportEmail } from '../grafana/email.js'
 import { getSettings, saveSettings, markSent } from '../grafana/settings.js'
 const { default: grafanaRouter } = await import('./grafana.js')
@@ -211,5 +212,40 @@ describe('GET /api/grafana/tick', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('POST /api/grafana/test-query', () => {
+  it('인증 없으면 401', async () => {
+    const res = await request(app).post('/api/grafana/test-query').send({ type: 'metric', query: 'up' })
+    expect(res.status).toBe(401)
+  })
+  it('type 잘못되면 400', async () => {
+    const res = await request(app).post('/api/grafana/test-query').set('x-app-password', 'test-pw').send({ type: 'x', query: 'up' })
+    expect(res.status).toBe(400)
+  })
+  it('query 비면 400', async () => {
+    const res = await request(app).post('/api/grafana/test-query').set('x-app-password', 'test-pw').send({ type: 'metric', query: '   ' })
+    expect(res.status).toBe(400)
+  })
+  it('metric 정상 → queryPrometheus 호출, ok:true (value null도 ok)', async () => {
+    queryPrometheus.mockResolvedValueOnce(null)
+    const res = await request(app).post('/api/grafana/test-query').set('x-app-password', 'test-pw').send({ type: 'metric', query: 'up' })
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ ok: true, value: null })
+    expect(queryPrometheus).toHaveBeenCalledWith('up')
+  })
+  it('metric 실행 실패 → HTTP 200 + ok:false', async () => {
+    queryPrometheus.mockRejectedValueOnce(new Error('bad expr'))
+    const res = await request(app).post('/api/grafana/test-query').set('x-app-password', 'test-pw').send({ type: 'metric', query: 'bad(' })
+    expect(res.status).toBe(200)
+    expect(res.body.ok).toBe(false)
+    expect(res.body.error).toBe('bad expr')
+  })
+  it('log 정상 → queryElasticsearch 호출, count 반환', async () => {
+    queryElasticsearch.mockResolvedValueOnce({ _test: { count: 3, rows: [] } })
+    const res = await request(app).post('/api/grafana/test-query').set('x-app-password', 'test-pw').send({ type: 'log', query: 'error' })
+    expect(res.body).toEqual({ ok: true, count: 3 })
+    expect(queryElasticsearch).toHaveBeenCalledWith([{ label: '_test', query: 'error' }], LOG_HOURS, LOG_FETCH, 0)
   })
 })
