@@ -1,5 +1,5 @@
 // server/grafana/client.js
-import { METRICS, LOG_QUERIES, LOG_HOURS, LOG_FETCH, LOG_INDEX_LAG_HOURS } from './config.js'
+import { LOG_HOURS, LOG_FETCH, LOG_INDEX_LAG_HOURS, activeQueries } from './config.js'
 import { extractPromValue, normalizeEsIndex, parseEsResponses, esLogRange } from './report.js'
 
 const TIMEOUT = 30000
@@ -75,29 +75,31 @@ export async function queryElasticsearch(queries, hours, fetchSize, lagHours = 0
   return parseEsResponses(json.responses || [], queries, timefield)
 }
 
-// 메트릭/로그를 모두 조회해 buildReport 입력 형태로 반환. 개별 실패는 격리.
-export async function gatherReportData(lagHours = LOG_INDEX_LAG_HOURS) {
-  const metrics = await Promise.all(METRICS.map(async (m) => {
+// 메트릭/로그를 모두 조회해 buildReport 입력 형태로 반환. 비활성 항목 제외, 개별 실패는 격리.
+export async function gatherReportData(metrics, logQueries, lagHours = LOG_INDEX_LAG_HOURS) {
+  const activeMetrics = activeQueries(metrics)
+  const m = await Promise.all(activeMetrics.map(async (mt) => {
     try {
-      const value = await queryPrometheus(m.query)
-      return { label: m.label, value, threshold: m.threshold, error: value == null ? '데이터 없음' : null }
+      const value = await queryPrometheus(mt.query)
+      return { label: mt.label, value, threshold: mt.threshold, error: value == null ? '데이터 없음' : null }
     } catch {
-      return { label: m.label, value: null, threshold: m.threshold, error: '조회 실패' }
+      return { label: mt.label, value: null, threshold: mt.threshold, error: '조회 실패' }
     }
   }))
 
+  const activeLogs = activeQueries(logQueries)
   let logs
   try {
-    const res = await queryElasticsearch(LOG_QUERIES, LOG_HOURS, LOG_FETCH, lagHours)
-    logs = LOG_QUERIES.map((lq) => ({
+    const res = await queryElasticsearch(activeLogs, LOG_HOURS, LOG_FETCH, lagHours)
+    logs = activeLogs.map((lq) => ({
       app: lq.label,
       count: res[lq.label]?.count ?? 0,
       rows: res[lq.label]?.rows ?? [],
       error: null,
     }))
   } catch {
-    logs = LOG_QUERIES.map((lq) => ({ app: lq.label, count: 0, rows: [], error: '조회 실패' }))
+    logs = activeLogs.map((lq) => ({ app: lq.label, count: 0, rows: [], error: '조회 실패' }))
   }
 
-  return { metrics, logs }
+  return { metrics: m, logs }
 }

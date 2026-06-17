@@ -5,7 +5,7 @@ import { buildReport, buildEmailHtml } from '../grafana/report.js'
 import { sendReportEmail } from '../grafana/email.js'
 import { getSettings, saveSettings, markSent } from '../grafana/settings.js'
 import { shouldSend, kstDateString } from '../grafana/schedule.js'
-import { LOG_INDEX_LAG_HOURS } from '../grafana/config.js'
+import { LOG_INDEX_LAG_HOURS, DEFAULT_METRICS, DEFAULT_LOG_QUERIES } from '../grafana/config.js'
 
 const router = Router()
 
@@ -26,12 +26,15 @@ function lagFrom(settings) {
   return Number.isInteger(v) && v >= 0 && v <= 24 ? v : LOG_INDEX_LAG_HOURS
 }
 
-// GET /api/grafana/report — 웹 on-demand 조회 (설정 오프셋 적용)
+// GET /api/grafana/report — 웹 on-demand 조회 (설정의 쿼리·오프셋 적용)
 router.get('/report', auth, async (_req, res) => {
-  let lagHours = LOG_INDEX_LAG_HOURS
-  try { lagHours = lagFrom(await getSettings()) } catch { /* 설정 조회 실패 시 기본 오프셋 */ }
+  let settings = null
+  try { settings = await getSettings() } catch { /* 설정 조회 실패 시 기본값 */ }
+  const lagHours = lagFrom(settings)
+  const metrics = settings?.metrics ?? DEFAULT_METRICS
+  const logQueries = settings?.log_queries ?? DEFAULT_LOG_QUERIES
   try {
-    const report = buildReport(await gatherReportData(lagHours))
+    const report = buildReport(await gatherReportData(metrics, logQueries, lagHours))
     res.json(report)
   } catch (e) {
     res.status(502).json({ error: e.message })
@@ -86,7 +89,7 @@ router.get('/tick', async (req, res) => {
     const recipients = settings.recipients?.length ? settings.recipients : envRecipients()
     if (recipients.length === 0) return res.json({ sent: false, reason: 'no-recipients' })
 
-    const report = buildReport(await gatherReportData(lagFrom(settings)))
+    const report = buildReport(await gatherReportData(settings.metrics, settings.log_queries, lagFrom(settings)))
     await sendReportEmail(buildEmailHtml(report), recipients)
     await markSent(kstDateString(now))
     res.json({ sent: true, alerts: report.summary.alerts })

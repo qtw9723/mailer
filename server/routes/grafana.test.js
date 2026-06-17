@@ -52,14 +52,14 @@ describe('GET /api/grafana/report', () => {
     getSettings.mockResolvedValueOnce({ recipients: ['a@x.com'], send_hour: 9, enabled: true, log_lag_hours: 2 })
     gatherReportData.mockResolvedValueOnce(SAMPLE)
     await request(app).get('/api/grafana/report').set('x-app-password', 'test-pw')
-    expect(gatherReportData).toHaveBeenCalledWith(2)
+    expect(gatherReportData).toHaveBeenCalledWith(expect.any(Array), expect.any(Array), 2)
   })
   it('설정 조회 실패해도 기본 오프셋(3)으로 리포트 반환', async () => {
     getSettings.mockRejectedValueOnce(new Error('db down'))
     gatherReportData.mockResolvedValueOnce(SAMPLE)
     const res = await request(app).get('/api/grafana/report').set('x-app-password', 'test-pw')
     expect(res.status).toBe(200)
-    expect(gatherReportData).toHaveBeenCalledWith(3)
+    expect(gatherReportData).toHaveBeenCalledWith(expect.any(Array), expect.any(Array), 3)
   })
 })
 
@@ -146,13 +146,15 @@ describe('GET /api/grafana/tick', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-06-05T00:00:00Z'))
     try {
-      getSettings.mockResolvedValueOnce({ recipients: ['a@x.com'], send_hour: 9, enabled: true, last_sent_date: '2000-01-01', log_lag_hours: 4 })
+      const M = [{ label: 'CPU', query: 'up', threshold: 80, enabled: true }]
+      const L = [{ label: 'soe', query: 'error', enabled: true }]
+      getSettings.mockResolvedValueOnce({ recipients: ['a@x.com'], send_hour: 9, enabled: true, last_sent_date: '2000-01-01', log_lag_hours: 4, metrics: M, log_queries: L })
       gatherReportData.mockResolvedValueOnce(SAMPLE)
       sendReportEmail.mockResolvedValueOnce()
       const res = await request(app).get('/api/grafana/tick').set('Authorization', 'Bearer cron-secret')
       expect(res.status).toBe(200)
       expect(res.body).toEqual({ sent: true, alerts: 0 })
-      expect(gatherReportData).toHaveBeenCalledWith(4)
+      expect(gatherReportData).toHaveBeenCalledWith(M, L, 4)
       expect(sendReportEmail).toHaveBeenCalledOnce()
       expect(sendReportEmail.mock.calls[0][1]).toEqual(['a@x.com'])
       expect(markSent).toHaveBeenCalledOnce()
