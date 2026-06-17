@@ -15,11 +15,11 @@ const LOG_COLUMNS = [
   { key: 'label', label: '라벨' },
   { key: 'query', label: 'ES 쿼리', wide: true },
 ]
-const newMetric = () => ({ label: '', query: '', threshold: 0, enabled: true })
-const newLog = () => ({ label: '', query: '', enabled: true })
+const newMetric = () => ({ _id: crypto.randomUUID(), label: '', query: '', threshold: 0, enabled: true })
+const newLog = () => ({ _id: crypto.randomUUID(), label: '', query: '', enabled: true })
 
 // 로드된 행에 게이트용 메타 부착(저장값 = 현재 query, 미테스트).
-const attachMeta = (r) => ({ ...r, _savedQuery: r.query, _test: 'untested', _testedQuery: undefined, _testError: '' })
+const attachMeta = (r) => ({ ...r, _id: crypto.randomUUID(), _savedQuery: r.query, _test: 'untested', _testedQuery: undefined, _testError: '' })
 // 저장 전 메타 제거.
 const stripMetric = (r) => ({ label: r.label, query: r.query, threshold: Number(r.threshold), enabled: r.enabled !== false })
 const stripLog = (r) => ({ label: r.label, query: r.query, enabled: r.enabled !== false })

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import QueryListEditor from './QueryListEditor.jsx'
@@ -54,5 +55,37 @@ describe('QueryListEditor', () => {
     await waitFor(() => expect(onChange).toHaveBeenCalledWith([
       expect.objectContaining({ label: 'soe', query: 'error', _test: 'passed', _testedQuery: 'error' }),
     ]))
+  })
+  it('테스트 진행 중 행을 삭제하면 결과를 폐기하고 삭제가 유지된다', async () => {
+    let resolveTest
+    const onTest = vi.fn(() => new Promise((res) => { resolveTest = res }))
+
+    function Wrapper() {
+      const [items, setItems] = useState([
+        { _id: 'a', label: 'soe', query: 'error', enabled: true },
+        { _id: 'b', label: 'c3', query: 'warn', enabled: true },
+      ])
+      return (
+        <QueryListEditor
+          title="로그 쿼리" items={items} columns={COLUMNS} newRow={newRow}
+          addLabel="+ 로그 쿼리 추가" onChange={setItems} onTest={onTest}
+        />
+      )
+    }
+
+    render(<Wrapper />)
+    // 첫 행 테스트 시작
+    fireEvent.click(screen.getAllByText('테스트')[0])
+    await waitFor(() => expect(onTest).toHaveBeenCalledWith('error'))
+    // 테스트 진행 중 첫 행 삭제
+    fireEvent.click(screen.getAllByLabelText('삭제')[0])
+    // 이제 첫 행은 'c3'만 남아야 함
+    expect(screen.queryByDisplayValue('soe')).not.toBeInTheDocument()
+    expect(screen.getByDisplayValue('c3')).toBeInTheDocument()
+    // 테스트 결과 도착 → 삭제된 행이 부활하면 안 됨
+    resolveTest({ ok: true })
+    await waitFor(() => {})
+    expect(screen.queryByDisplayValue('soe')).not.toBeInTheDocument()
+    expect(screen.getByDisplayValue('c3')).toBeInTheDocument()
   })
 })
