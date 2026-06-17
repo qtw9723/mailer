@@ -91,67 +91,73 @@ export default function GrafanaSettings() {
   if (loading) return <p className="job-empty">불러오는 중…</p>
 
   return (
-    <form className="grafana-settings" onSubmit={handleSave}>
-      <div className="form-field">
-        <label className="form-label">수신자 이메일</label>
-        <TagInput values={recipients} onChange={(v) => { setRecipients(v); setSaved(false) }} />
-        <p className="form-hint">이메일 입력 후 Enter. 비우면 환경변수 수신자로 폴백됩니다. 발송을 완전히 멈추려면 아래 ‘매일 자동 발송’을 꺼주세요.</p>
-      </div>
+    <form className="gset" onSubmit={handleSave}>
+      <section className="gset-section">
+        <h3 className="gset-section-title">리포트 발송</h3>
+        <div className="gset-grid">
+          <div className="gset-field">
+            <span className="gset-label">매일 자동 발송</span>
+            <label className="gset-switch">
+              <input type="checkbox" checked={enabled} onChange={(e) => { setEnabled(e.target.checked); setSaved(false) }} />
+              <span className="gset-switch-track"><span className="gset-switch-dot" /></span>
+              <span className="gset-switch-text">{enabled ? '켜짐' : '꺼짐'}</span>
+            </label>
+          </div>
+          <div className="gset-field">
+            <label className="gset-label" htmlFor="grafana-send-hour">발송 시각 (KST)</label>
+            <select id="grafana-send-hour" className="form-select" value={sendHour}
+              onChange={(e) => { setSendHour(Number(e.target.value)); setSaved(false) }}>
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>{String(h).padStart(2, '0')}시</option>
+              ))}
+            </select>
+          </div>
+          <div className="gset-field">
+            <label className="gset-label" htmlFor="grafana-log-lag">로그 적재 지연 보정</label>
+            <select id="grafana-log-lag" className="form-select" value={logLagHours}
+              onChange={(e) => { setLogLagHours(Number(e.target.value)); setSaved(false) }}>
+              {Array.from({ length: 25 }, (_, h) => (
+                <option key={h} value={h}>{h}시간</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="gset-field gset-field-full">
+          <span className="gset-label">수신자 이메일</span>
+          <TagInput values={recipients} onChange={(v) => { setRecipients(v); setSaved(false) }} />
+          <p className="form-hint">이메일 입력 후 Enter. 비우면 환경변수 수신자로 폴백됩니다. 발송을 완전히 멈추려면 ‘매일 자동 발송’을 꺼주세요. 로그 지연 보정 기본 3시간.</p>
+        </div>
+      </section>
 
-      <div className="form-field">
-        <label className="form-label" htmlFor="grafana-send-hour">발송 시각 (KST)</label>
-        <select id="grafana-send-hour" className="form-select" value={sendHour}
-          onChange={(e) => { setSendHour(Number(e.target.value)); setSaved(false) }}>
-          {Array.from({ length: 24 }, (_, h) => (
-            <option key={h} value={h}>{String(h).padStart(2, '0')}시</option>
-          ))}
-        </select>
-      </div>
+      <section className="gset-section">
+        <h3 className="gset-section-title">모니터링 쿼리</h3>
 
-      <div className="form-field">
-        <label className="grafana-toggle">
-          <input type="checkbox" checked={enabled}
-            onChange={(e) => { setEnabled(e.target.checked); setSaved(false) }} />
-          매일 자동 발송
-        </label>
-      </div>
+        <h4 className="gset-subtitle">메트릭 <span className="gset-subtitle-dim">(Prometheus)</span></h4>
+        <QueryListEditor
+          items={metrics}
+          columns={METRIC_COLUMNS}
+          newRow={newMetric}
+          addLabel="+ 메트릭 추가"
+          onChange={(v) => { setMetrics(v); setSaved(false) }}
+          onTest={runMetricTest}
+          formatResult={(r) => (r.value == null ? '데이터 없음' : `현재 값 ${r.value}`)}
+        />
 
-      <div className="form-field">
-        <label className="form-label" htmlFor="grafana-log-lag">로그 적재 지연 보정 (시간)</label>
-        <select id="grafana-log-lag" className="form-select" value={logLagHours}
-          onChange={(e) => { setLogLagHours(Number(e.target.value)); setSaved(false) }}>
-          {Array.from({ length: 25 }, (_, h) => (
-            <option key={h} value={h}>{h}시간</option>
-          ))}
-        </select>
-        <p className="form-hint">로그가 ES에 늦게 색인되는 지연을 감안해, 조회 시간창을 이만큼 뒤로 당깁니다. 기본 3시간.</p>
-      </div>
+        <h4 className="gset-subtitle gset-subtitle-spaced">로그 <span className="gset-subtitle-dim">(Elasticsearch)</span></h4>
+        <QueryListEditor
+          items={logQueries}
+          columns={LOG_COLUMNS}
+          newRow={newLog}
+          addLabel="+ 로그 쿼리 추가"
+          onChange={(v) => { setLogQueries(v); setSaved(false) }}
+          onTest={runLogTest}
+          formatResult={(r) => `최근 24h(지연보정) ${r.count ?? 0}건`}
+        />
+      </section>
 
-      <QueryListEditor
-        title="메트릭 쿼리 (Prometheus)"
-        items={metrics}
-        columns={METRIC_COLUMNS}
-        newRow={newMetric}
-        addLabel="+ 메트릭 추가"
-        onChange={(v) => { setMetrics(v); setSaved(false) }}
-        onTest={runMetricTest}
-        formatResult={(r) => (r.value == null ? '데이터 없음' : `현재 값 ${r.value}`)}
-      />
-
-      <QueryListEditor
-        title="로그 쿼리 (Elasticsearch)"
-        items={logQueries}
-        columns={LOG_COLUMNS}
-        newRow={newLog}
-        addLabel="+ 로그 쿼리 추가"
-        onChange={(v) => { setLogQueries(v); setSaved(false) }}
-        onTest={runLogTest}
-        formatResult={(r) => `최근 24h(지연보정) ${r.count ?? 0}건`}
-      />
-
-      {!gateOk && <p className="form-hint form-hint-error">신규·수정된 쿼리는 테스트를 통과해야 저장할 수 있습니다.</p>}
       {error && <div className="grafana-error">{error}</div>}
-      <div className="modal-actions">
+      <div className="gset-savebar">
+        {!gateOk && <span className="form-hint form-hint-error">신규·수정된 쿼리는 테스트를 통과해야 저장할 수 있습니다.</span>}
         <button type="submit" className="modal-submit" disabled={saving || !gateOk}>
           {saving ? '저장 중…' : saved ? '저장됨 ✓' : '저장'}
         </button>
