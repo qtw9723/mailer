@@ -88,4 +88,22 @@ describe('QueryListEditor', () => {
     expect(screen.queryByDisplayValue('soe')).not.toBeInTheDocument()
     expect(screen.getByDisplayValue('c3')).toBeInTheDocument()
   })
+  it('통과 시 formatResult로 1줄 결과를 보여준다', async () => {
+    const onTest = vi.fn().mockResolvedValue({ ok: true, value: 42.1 })
+
+    function Wrapper() {
+      const [items, setItems] = useState([{ _id: 'a', label: 'CPU', query: 'up', enabled: true }])
+      return (
+        <QueryListEditor
+          title="메트릭" items={items} columns={COLUMNS} newRow={newRow}
+          addLabel="+ 추가" onChange={setItems} onTest={onTest}
+          formatResult={(r) => `현재 값 ${r.value}`}
+        />
+      )
+    }
+
+    render(<Wrapper />)
+    fireEvent.click(screen.getByText('테스트'))
+    expect(await screen.findByText(/통과 · 현재 값 42\.1/)).toBeInTheDocument()
+  })
 })

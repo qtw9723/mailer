@@ -1,17 +1,22 @@
 import { useState, useRef } from 'react'
-import { X } from 'lucide-react'
+import { X, Check, AlertTriangle, Circle, FlaskConical, Loader2 } from 'lucide-react'
 import { rowIsGood } from '../../lib/grafanaQueryGate.js'
 
-// 범용 쿼리 리스트 편집기.
+// 범용 쿼리 리스트 편집기 (조밀 리스트형 + 1줄 테스트 결과).
 // props:
 //  title, items, columns([{key,label,wide?,type?}]), newRow(()=>row),
-//  addLabel, onChange(newItems), onTest(query)=>Promise<{ok,error}>
-export default function QueryListEditor({ title, items, columns, newRow, addLabel, onChange, onTest }) {
+//  addLabel, onChange(newItems), onTest(query)=>Promise<{ok,value?,count?,error?}>,
+//  formatResult(resp)=>string  (통과 시 보여줄 1줄 상세; 옵션)
+// 컬럼 중 wide=true(쿼리)는 두 번째 줄에 전체폭, 나머지는 첫 줄에 배치한다.
+export default function QueryListEditor({ title, items, columns, newRow, addLabel, onChange, onTest, formatResult }) {
   const [testing, setTesting] = useState(null) // 테스트 진행 중인 행 식별자(_id 또는 index)
 
   // 항상 최신 items를 가리키는 ref — 비동기 콜백의 stale 스냅샷/행 부활 방지.
   const itemsRef = useRef(items)
   itemsRef.current = items
+
+  const inlineCols = columns.filter((c) => !c.wide)
+  const wideCols = columns.filter((c) => c.wide)
 
   const patchAt = (idx, patch) => onChange(itemsRef.current.map((it, k) => (k === idx ? { ...it, ...patch } : it)))
   const update = (i, patch) => patchAt(i, patch)
@@ -26,7 +31,7 @@ export default function QueryListEditor({ title, items, columns, newRow, addLabe
   const onFieldChange = (i, c, value) => {
     const v = c.type === 'number' ? Number(value) : value
     // query를 수정하면 이전 테스트 상태를 무효화한다.
-    const extra = c.key === 'query' ? { _test: 'untested', _testError: '' } : {}
+    const extra = c.key === 'query' ? { _test: 'untested', _testError: '', _testDetail: '' } : {}
     update(i, { [c.key]: v, ...extra })
   }
 
@@ -39,20 +44,33 @@ export default function QueryListEditor({ title, items, columns, newRow, addLabe
       const r = await onTest(q)
       const idx = findIdx(row, i)
       if (idx === -1) return // 행이 삭제됨 → 결과 폐기
-      patchAt(idx, r?.ok ? { _test: 'passed', _testedQuery: q, _testError: '' }
-                         : { _test: 'failed', _testError: r?.error || '실패' })
+      patchAt(idx, r?.ok
+        ? { _test: 'passed', _testedQuery: q, _testError: '', _testDetail: formatResult ? formatResult(r) : '' }
+        : { _test: 'failed', _testError: r?.error || '실패', _testDetail: '' })
     } catch (e) {
       const idx = findIdx(row, i)
-      if (idx !== -1) patchAt(idx, { _test: 'failed', _testError: e.message })
+      if (idx !== -1) patchAt(idx, { _test: 'failed', _testError: e.message, _testDetail: '' })
     } finally {
       setTesting(null)
     }
   }
 
-  const badge = (row) => {
-    if (rowIsGood(row)) return <span className="query-badge ok">✓ 등록 가능</span>
-    if (row._test === 'failed') return <span className="query-badge fail">✗ {row._testError || '실패'}</span>
-    return <span className="query-badge todo">미테스트</span>
+  // 행 상태: 테스트중 / 실패 / 등록가능(통과·기존) / 미테스트
+  const stateOf = (row, key) => {
+    if (testing === key) return 'testing'
+    if (row._test === 'failed') return 'fail'
+    if (rowIsGood(row)) return 'ok'
+    return 'todo'
+  }
+
+  const resultLine = (row, st) => {
+    if (st === 'testing') return <div className="query-result"><Loader2 size={13} className="query-spin" /> 테스트 중…</div>
+    if (st === 'fail') return <div className="query-result fail"><AlertTriangle size={13} /> <span className="query-rtext" title={row._testError}>실패 · {row._testError}</span></div>
+    if (st === 'ok') {
+      if (row._test === 'passed') return <div className="query-result ok"><Check size={13} /> <span className="query-rtext">통과{row._testDetail ? ` · ${row._testDetail}` : ''}</span></div>
+      return <div className="query-result ok"><Check size={13} /> 등록됨</div>
+    }
+    return <div className="query-result todo"><Circle size={11} /> 미테스트 — 저장하려면 테스트하세요</div>
   }
 
   return (
@@ -60,38 +78,45 @@ export default function QueryListEditor({ title, items, columns, newRow, addLabe
       <label className="form-label">{title}</label>
       <div className="query-list">
         {items.map((row, i) => {
-          const isTesting = testing === rowKey(row, i)
+          const key = rowKey(row, i)
+          const st = stateOf(row, key)
           return (
-            <div className="query-row" key={rowKey(row, i)}>
-              <div className="query-fields">
-                {columns.map((c) => (
+            <div className={`query-row s-${st}`} key={key}>
+              <div className="query-line">
+                {inlineCols.map((c) => (
                   <input
                     key={c.key}
-                    className={`form-input${c.wide ? ' query-wide' : ''}`}
+                    className={`form-input query-${c.key}${c.type === 'number' ? ' query-num' : ''}`}
                     type={c.type || 'text'}
                     placeholder={c.label}
                     value={row[c.key] ?? ''}
                     onChange={(e) => onFieldChange(i, c, e.target.value)}
                   />
                 ))}
+                <div className="query-right">
+                  <button type="button" className="query-test-btn" disabled={st === 'testing'} onClick={() => runTest(i)}>
+                    <FlaskConical size={13} /> {st === 'testing' ? '테스트 중…' : '테스트'}
+                  </button>
+                  <label className="query-enabled">
+                    <input type="checkbox" checked={row.enabled !== false} onChange={(e) => update(i, { enabled: e.target.checked })} />
+                    사용
+                  </label>
+                  <button type="button" className="query-del" aria-label="삭제" onClick={() => remove(i)}>
+                    <X size={15} />
+                  </button>
+                </div>
               </div>
-              <div className="query-controls">
-                <label className="query-enabled">
-                  <input
-                    type="checkbox"
-                    checked={row.enabled !== false}
-                    onChange={(e) => update(i, { enabled: e.target.checked })}
-                  />
-                  사용
-                </label>
-                <button type="button" className="query-test-btn" disabled={isTesting} onClick={() => runTest(i)}>
-                  {isTesting ? '테스트 중…' : '테스트'}
-                </button>
-                {badge(row)}
-                <button type="button" className="query-del" aria-label="삭제" onClick={() => remove(i)}>
-                  <X size={16} />
-                </button>
-              </div>
+              {wideCols.map((c) => (
+                <input
+                  key={c.key}
+                  className={`form-input query-wide query-${c.key}`}
+                  type={c.type || 'text'}
+                  placeholder={c.label}
+                  value={row[c.key] ?? ''}
+                  onChange={(e) => onFieldChange(i, c, e.target.value)}
+                />
+              ))}
+              {resultLine(row, st)}
             </div>
           )
         })}
