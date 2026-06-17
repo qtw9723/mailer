@@ -12,7 +12,7 @@ vi.mock('../grafana/settings.js', () => ({
 }))
 
 import { gatherReportData, queryPrometheus, queryElasticsearch } from '../grafana/client.js'
-import { LOG_HOURS, LOG_FETCH } from '../grafana/config.js'
+import { LOG_HOURS, LOG_FETCH, LOG_INDEX_LAG_HOURS } from '../grafana/config.js'
 import { sendReportEmail } from '../grafana/email.js'
 import { getSettings, saveSettings, markSent } from '../grafana/settings.js'
 const { default: grafanaRouter } = await import('./grafana.js')
@@ -242,10 +242,17 @@ describe('POST /api/grafana/test-query', () => {
     expect(res.body.ok).toBe(false)
     expect(res.body.error).toBe('bad expr')
   })
-  it('log 정상 → queryElasticsearch 호출, count 반환', async () => {
+  it('log 정상 → 설정 lag 적용해 queryElasticsearch 호출, count 반환', async () => {
+    getSettings.mockResolvedValueOnce({ log_lag_hours: 2 })
     queryElasticsearch.mockResolvedValueOnce({ _test: { count: 3, rows: [] } })
     const res = await request(app).post('/api/grafana/test-query').set('x-app-password', 'test-pw').send({ type: 'log', query: 'error' })
     expect(res.body).toEqual({ ok: true, count: 3 })
-    expect(queryElasticsearch).toHaveBeenCalledWith([{ label: '_test', query: 'error' }], LOG_HOURS, LOG_FETCH, 0)
+    expect(queryElasticsearch).toHaveBeenCalledWith([{ label: '_test', query: 'error' }], LOG_HOURS, LOG_FETCH, 2)
+  })
+  it('log: 설정 조회 실패 시 기본 오프셋으로 호출', async () => {
+    getSettings.mockRejectedValueOnce(new Error('db down'))
+    queryElasticsearch.mockResolvedValueOnce({ _test: { count: 0, rows: [] } })
+    await request(app).post('/api/grafana/test-query').set('x-app-password', 'test-pw').send({ type: 'log', query: 'error' })
+    expect(queryElasticsearch).toHaveBeenCalledWith([{ label: '_test', query: 'error' }], LOG_HOURS, LOG_FETCH, LOG_INDEX_LAG_HOURS)
   })
 })

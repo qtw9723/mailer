@@ -146,7 +146,7 @@ export default function GrafanaSettings() {
         addLabel="+ 로그 쿼리 추가"
         onChange={(v) => { setLogQueries(v); setSaved(false) }}
         onTest={runLogTest}
-        formatResult={(r) => `최근 24h ${r.count ?? 0}건`}
+        formatResult={(r) => `최근 24h(지연보정) ${r.count ?? 0}건`}
       />
 
       {!gateOk && <p className="form-hint form-hint-error">신규·수정된 쿼리는 테스트를 통과해야 저장할 수 있습니다.</p>}
