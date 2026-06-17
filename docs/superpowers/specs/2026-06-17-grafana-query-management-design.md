@@ -5,7 +5,7 @@
 
 ## 1. 목적
 
-`config.js`의 `METRICS`(`{label, query, threshold}`)와 `LOG_QUERIES`(`{label, query}`)를 Supabase에 저장하고, 설정 UI에서 **추가/수정/삭제 + 항목별 enabled 토글**로 관리한다. 코드 배포 없이 모니터링 대상을 바꿀 수 있게 한다.
+`config.js`의 `METRICS`(`{label, query, threshold}`)와 `LOG_QUERIES`(`{label, query}`)를 Supabase에 저장하고, 설정 UI에서 **추가/수정/삭제 + 항목별 enabled 토글**로 관리한다. 코드 배포 없이 모니터링 대상을 바꿀 수 있게 한다. 신규·수정한 쿼리는 **테스트(Grafana 실호출)에 통과해야 등록**할 수 있다(§8).
 
 ## 2. 접근 방식
 
@@ -44,11 +44,11 @@
 | 마이그레이션 `supabase/migrations/20260617000000_add_grafana_queries.sql` | `metrics jsonb`, `log_queries jsonb` 컬럼 추가(멱등 `ADD COLUMN IF NOT EXISTS`). **`supabase db push` 금지 — Management API로 적용** |
 | `server/grafana/config.js` | `METRICS`→`DEFAULT_METRICS`, `LOG_QUERIES`→`DEFAULT_LOG_QUERIES`로 개명. 각 항목에 `enabled: true` 추가. 시드·폴백 원천으로만 사용 |
 | `server/grafana/settings.js` | `getSettings`: `metrics`/`log_queries`가 비어 있으면 `DEFAULT_*`로 채워 반환. `saveSettings({..., metrics, log_queries})`: 두 배열 저장에 포함 |
-| `server/grafana/client.js` | `METRICS`/`LOG_QUERIES` import 제거. `gatherReportData(metrics, logQueries, lagHours)` — 인자로 받은 배열 사용, `enabled !== false`만 필터해 조회. 로그 결과 매핑도 필터된 배열 기준 |
-| `server/routes/grafana.js` | `/report`·`/tick`: `getSettings()` 후 `gatherReportData(settings.metrics, settings.log_queries, lagFrom(settings))` 호출. `PUT /settings`: `metrics`·`log_queries` 형태·상한 검증(아니면 400), `saveSettings`에 전달 |
-| `src/lib/api/grafana.js` | 변경 없음(이미 body 전체 송수신) |
-| `src/components/grafana/GrafanaSettings.jsx` | 로드/저장 state에 `metrics`·`log_queries` 추가. 두 편집 섹션 렌더. 저장 payload에 포함 |
-| `src/components/grafana/QueryListEditor.jsx` (신규) | 행 리스트 편집 서브컴포넌트. props로 컬럼 정의를 받아 메트릭/로그 양쪽에 재사용 |
+| `server/grafana/client.js` | `METRICS`/`LOG_QUERIES` import 제거. `gatherReportData(metrics, logQueries, lagHours)` — 인자로 받은 배열 사용, `enabled !== false`만 필터해 조회. 로그 결과 매핑도 필터된 배열 기준. (단일 쿼리 테스트는 기존 `queryPrometheus`/`queryElasticsearch` 재사용) |
+| `server/routes/grafana.js` | `/report`·`/tick`: `getSettings()` 후 `gatherReportData(settings.metrics, settings.log_queries, lagFrom(settings))` 호출. `PUT /settings`: `metrics`·`log_queries` 형태·상한 검증(아니면 400), `saveSettings`에 전달. **`POST /test-query` 신규**(§8) |
+| `src/lib/api/grafana.js` | `testQuery({ type, query }, password)` 추가. updateSettings는 변경 없음(body 전체 송수신) |
+| `src/components/grafana/GrafanaSettings.jsx` | 로드/저장 state에 `metrics`·`log_queries` 추가. 두 편집 섹션 렌더. 저장 payload에 포함. 행별 테스트 상태 추적 + 게이트로 저장 버튼 제어(§8) |
+| `src/components/grafana/QueryListEditor.jsx` (신규) | 행 리스트 편집 서브컴포넌트. props로 컬럼 정의를 받아 메트릭/로그 양쪽에 재사용. 행별 “테스트” 버튼·상태 배지 포함 |
 | `src/index.css` | 행 편집 UI용 최소 스타일(기존 `.form-*` 최대한 재사용) |
 
 ### gatherReportData 명세
@@ -81,23 +81,56 @@ return {
 
 클라이언트 측 가벼운 가드: `label`/`query`가 빈 행이 있으면 저장 비활성 또는 경고(서버 검증이 최종 권위). 서버 400 메시지를 가능하면 UI에 노출(현재는 일괄 “저장에 실패했습니다.”).
 
-## 8. 범위 밖 (YAGNI)
+## 8. 쿼리 테스트 게이트
 
-- 저장 전 “쿼리 테스트/미리보기”(Grafana 실호출 검증) — 후속 과제.
+쿼리는 **테스트 통과 후에만 등록(저장)** 할 수 있다.
+
+### 테스트 엔드포인트
+`POST /api/grafana/test-query` (auth: `x-app-password`)
+- body: `{ type: 'metric' | 'log', query: string }`
+- `metric` → `queryPrometheus(query)` 1회 실행. 성공 시 `{ ok: true, value }`(value가 null=데이터 없음이어도 ok). 예외 시 `{ ok: false, error }`.
+- `log` → `queryElasticsearch([{ label: '_test', query }], LOG_HOURS, LOG_FETCH, 0)` 1회. 성공 시 `{ ok: true, count }`. 예외 시 `{ ok: false, error }`. (lagHours는 통과/실패에 무관하므로 0 고정 — “실행되는가”만 본다.)
+- 검증: `type`∈{metric,log}, `query` 비어있지 않은 문자열·길이 ≤2000. 아니면 400.
+- **HTTP 코드 구분**: 요청 형식 오류만 400. **쿼리 실행 실패는 HTTP 200 + `{ ok: false, error }`**(쿼리 자체가 깨졌다는 건 정상 응답으로 보고, 클라이언트가 ok 플래그로 통과/실패 판정). 401은 인증 실패.
+- 쿼리는 `APP_PASSWORD` 뒤의 관리자 입력으로, 저장될 쿼리와 동일 신뢰 수준. 실행 위험 동일.
+
+### 통과 기준
+**에러 없이 실행되면 통과.** Grafana가 쿼리를 정상 수락·파싱하면 OK이며, 데이터 0건·null도 통과로 본다(예: Pod 재시작 0, 로그 히트 없음은 정상 상황).
+
+### 게이트 범위 (신규·수정된 행만)
+- 로드된 기존 행은 마지막 저장된 `query`를 “검증된 값(grandfather)”으로 신뢰한다.
+- 어떤 행이 **저장 가능(good)** 한 조건: 현재 `query`가 그 행의 마지막 저장 `query`와 동일(미변경) **또는** 현재 `query`에 대해 테스트 통과.
+- 신규 행은 마지막 저장 `query`가 없으므로 **반드시 테스트 통과해야** 저장 가능.
+- `query` 텍스트를 수정하면 통과 상태가 풀려 재테스트 필요. **`label`·`threshold`·`enabled` 변경은 게이트와 무관**(Grafana 호출에 영향 없음).
+- 게이트는 `enabled`와 독립이다: 비활성 신규/수정 행도 저장하려면 통과해야 한다(나중에 활성화될 때 깨진 쿼리가 등록돼 있는 것을 방지). 테스트하기 싫으면 그 행을 삭제.
+
+### 상태 추적 (프론트)
+각 행에 비저장 메타 보유: `_savedQuery`(로드 시 = 저장된 query, 신규는 없음), 테스트 결과(`untested`/`passed`/`failed`)와 통과 시점의 `_testedQuery`.
+- “good” = `query === _savedQuery` 또는 (`passed` && `_testedQuery === query`).
+- 하나라도 good 아닌 행이 있으면 **저장 버튼 비활성**, 어느 행이 테스트 필요한지 표시.
+- 테스트 실패/네트워크 오류 → ✗ 배지 + 메시지, 해당 행은 테스트 필요 상태 유지(저장 차단), 재시도 가능.
+
+### 서버 권위 범위
+게이트는 **클라이언트 UX 차원**이다. 서버는 저장 시 형태·상한(§3) 검증은 하되, “테스트됐는지”는 추적하지 않는다(저장마다 전 쿼리 재실행은 과함). 신규/수정 쿼리의 Grafana 실행 검증은 클라이언트 테스트 게이트가 담당.
+
+## 9. 범위 밖 (YAGNI)
+
 - 드래그 정렬 — 배열 순서 = 추가 순서로 충분.
 - 항목별 메타데이터(설명, 심각도 등) — 불필요.
+- “전체 테스트” 일괄 버튼 — 행별 테스트로 충분(추후 추가 가능).
 
-## 9. 테스트
+## 10. 테스트
 
 - `routes/grafana.test.js`:
   - `PUT /settings`: 정상 `metrics`/`log_queries` 저장 시 `saveSettings`가 두 배열 포함해 호출됨.
   - 비정상 형태(메트릭 threshold 비수치, label 빈문자열, query 빈문자열, 배열 아님, 상한 초과) → 400.
   - `/report`·`/tick`: `gatherReportData`가 설정의 `metrics`·`log_queries`로 호출되는지(모킹 인자 확인).
+  - `POST /test-query`: `type:'metric'` → `queryPrometheus` 호출, 성공 `{ok:true,value}`/예외 `{ok:false,error}`. `type:'log'` → `queryElasticsearch` 호출, `{ok:true,count}`. 잘못된 `type`·빈 `query`·길이 초과 → 400. (client 모킹)
 - `report.test.js` 또는 `client` 단위테스트:
   - `gatherReportData`가 `enabled === false` 항목을 조회·결과에서 제외.
   - `getSettings` 폴백: DB 배열 비어 있을 때 `DEFAULT_*` 반환.
 
-## 10. 작업 방식
+## 11. 작업 방식
 
 - 브랜치 `feature/grafana-query-management`에서 진행(main 직접 금지).
 - 마이그레이션은 `supabase db push` 금지 — `.env`의 `SUPABASE_ACCESS_TOKEN` 기반 Management API로 멱등 SQL 적용.
