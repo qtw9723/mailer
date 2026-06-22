@@ -62,4 +62,18 @@ ALTER TABLE chatbots ADD COLUMN IF NOT EXISTS category TEXT;
 - 러너 필터/메일 분기는 순수 함수로 추출 가능하면 단위 테스트, 아니면 수동 검증.
 
 ## 범위 밖 (YAGNI)
-- 다중 태그, 다중 칩 동시 선택, 별도 카테고리 관리/이름변경 화면, 카테고리별 스케줄.
+- 다중 태그, 다중 칩 동시 선택, 카테고리별 스케줄.
+
+---
+
+## 개정 (2026-06-22): 자유입력 → 관리 목록 + 선택/추가
+
+자유입력(datalist)에서 **관리되는 카테고리 목록**으로 전환. 봇이 없어도 카테고리가 유지된다.
+
+- **저장**: `chatbot_monitor_settings.categories JSONB DEFAULT '[]'` 추가(싱글톤 행 재사용). 기존 `chatbots.category` distinct 값으로 1회 백필.
+- **모달**: 카테고리 `<select>`(목록 + "(미분류)" 빈 옵션) + 옆 **"+"** 버튼 → 인라인 입력으로 새 카테고리 추가 후 자동 선택.
+- **페이지 칩바**: 칩 끝에 **"+"** 칩 → 인라인 입력으로 카테고리 추가.
+- 두 진입점 모두 동일한 `addCategory(name)` → `PUT /settings { categories }`(낙관적 갱신). 트림·중복·빈값 제거.
+- **칩 목록 출처**: 봇에서 파생이 아니라 **관리 목록(settings.categories)** + 봇 중 미분류 존재 시 "미분류".
+- `PUT /settings`는 부분 갱신: 제공된 `recipients`/`categories`만 변경(서로 덮어쓰지 않음).
+- 카테고리 삭제/이름변경은 여전히 범위 밖.
