@@ -139,13 +139,21 @@ router.get('/settings', auth, async (_req, res) => {
   }
 })
 
-// PUT /api/chatbot/settings
+// PUT /api/chatbot/settings — recipients / categories 부분 갱신 (제공된 것만 변경)
 router.put('/settings', auth, async (req, res) => {
-  const { recipients } = req.body
+  const { recipients, categories } = req.body
+  const patch = { updated_at: new Date().toISOString() }
+  if (recipients !== undefined) patch.recipients = recipients ?? []
+  if (categories !== undefined) {
+    const seen = new Set()
+    patch.categories = (Array.isArray(categories) ? categories : [])
+      .map(c => String(c).trim())
+      .filter(c => c && !seen.has(c) && seen.add(c)) // 트림·빈값·중복 제거, 순서 유지
+  }
   try {
     const { data, error } = await db
       .from('chatbot_monitor_settings')
-      .update({ recipients: recipients ?? [], updated_at: new Date().toISOString() })
+      .update(patch)
       .eq('id', 1)
       .select()
       .single()

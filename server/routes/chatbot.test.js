@@ -200,4 +200,22 @@ describe('settings', () => {
     expect(res.status).toBe(200)
     expect(res.body.recipients).toEqual(['x@y.z'])
   })
+
+  it('PUT: recipients만 보내면 categories는 건드리지 않음', async () => {
+    const q = mockQuery({ data: { id: 1 }, error: null })
+    mockFrom.mockReturnValueOnce(q)
+    await request(app).put('/api/chatbot/settings').set(AUTH).send({ recipients: ['x@y.z'] })
+    const patch = q.update.mock.calls[0][0]
+    expect(patch).toHaveProperty('recipients')
+    expect(patch).not.toHaveProperty('categories')
+  })
+
+  it('PUT: categories 갱신 (트림·중복·빈값 제거, 순서 유지)', async () => {
+    const q = mockQuery({ data: { id: 1, categories: ['예약', '결제'] }, error: null })
+    mockFrom.mockReturnValueOnce(q)
+    const res = await request(app).put('/api/chatbot/settings').set(AUTH)
+      .send({ categories: [' 예약 ', '예약', '', '결제'] })
+    expect(res.status).toBe(200)
+    expect(q.update).toHaveBeenCalledWith(expect.objectContaining({ categories: ['예약', '결제'] }))
+  })
 })

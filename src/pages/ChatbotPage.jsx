@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Play } from 'lucide-react'
 import { toast } from 'sonner'
-import { getBots, createBot, updateBot, deleteBot, runCheck } from '../lib/api/chatbot.js'
+import { getBots, createBot, updateBot, deleteBot, runCheck, getChatbotSettings, updateChatbotSettings } from '../lib/api/chatbot.js'
 import { getCookie, clearCookie } from '../lib/auth.js'
 import AppHeader from '../components/shared/AppHeader.jsx'
 import ConfirmDialog from '../components/shared/ConfirmDialog.jsx'
@@ -27,13 +27,17 @@ export default function ChatbotPage() {
   const [togglingIds, setTogglingIds] = useState(new Set())
   const [running, setRunning] = useState(false)
   const [activeCat, setActiveCat] = useState(null) // null = 전체, UNCAT = 미분류
+  const [categories, setCategories] = useState([]) // 관리 목록(settings.categories)
+  const [addingCat, setAddingCat] = useState(false)
+  const [newCat, setNewCat] = useState('')
 
-  const { list: catList, hasUncat } = useMemo(() => {
-    const set = new Set()
-    let uncat = false
-    for (const b of bots) { if (b.category) set.add(b.category); else uncat = true }
-    return { list: [...set].sort((a, b) => a.localeCompare(b, 'ko')), hasUncat: uncat }
-  }, [bots])
+  // 칩 목록: 관리 목록 + 봇에 박힌 카테고리(미백필 대비) 합집합
+  const catList = useMemo(() => {
+    const set = new Set(categories)
+    for (const b of bots) if (b.category) set.add(b.category)
+    return [...set].sort((a, b) => a.localeCompare(b, 'ko'))
+  }, [categories, bots])
+  const hasUncat = useMemo(() => bots.some(b => !b.category), [bots])
 
   const visibleBots = activeCat == null ? bots
     : activeCat === UNCAT ? bots.filter(b => !b.category)
@@ -46,7 +50,12 @@ export default function ChatbotPage() {
 
   const refresh = useCallback(async () => {
     try {
-      setBots(await getBots(password))
+      const [botList, settings] = await Promise.all([
+        getBots(password),
+        getChatbotSettings(password).catch(() => null), // best-effort
+      ])
+      setBots(botList)
+      if (Array.isArray(settings?.categories)) setCategories(settings.categories)
     } catch (e) {
       if (e.message === 'UNAUTHORIZED') { clearCookie(); navigate('/login') }
     } finally {
@@ -55,6 +64,24 @@ export default function ChatbotPage() {
   }, [password, navigate])
 
   useEffect(() => { refresh() }, [refresh])
+
+  // 카테고리 추가(모달 + / 칩바 + 공용). 성공 시 추가된 이름 반환.
+  const addCategory = async (name) => {
+    const n = (name ?? '').trim()
+    if (!n) return null
+    if (catList.includes(n)) return n
+    const next = [...categories, n]
+    setCategories(next)
+    try {
+      await updateChatbotSettings({ categories: next }, password)
+      toast.success(`"${n}" 카테고리를 추가했습니다`)
+      return n
+    } catch {
+      setCategories(categories)
+      toast.error('카테고리 추가에 실패했습니다')
+      return null
+    }
+  }
 
   const handleSubmit = async (data) => {
     setSaving(true)
@@ -148,7 +175,7 @@ export default function ChatbotPage() {
       {tab === 'bots' ? (
         <div className="job-list">
           <p className="form-hint">매일 08:30 KST 자동 체크 · GitHub Actions에서 수동 실행 가능</p>
-          {(catList.length > 0 || hasUncat) && (
+          {(catList.length > 0 || bots.length > 0) && (
             <div className="cat-chips">
               <button type="button" className={`cat-chip${activeCat == null ? ' active' : ''}`} onClick={() => setActiveCat(null)}>전체</button>
               {catList.map(c => (
@@ -156,6 +183,26 @@ export default function ChatbotPage() {
               ))}
               {hasUncat && (
                 <button type="button" className={`cat-chip${activeCat === UNCAT ? ' active' : ''}`} onClick={() => setActiveCat(UNCAT)}>미분류</button>
+              )}
+              {addingCat ? (
+                <form
+                  className="cat-chip-add"
+                  onSubmit={async (e) => { e.preventDefault(); await addCategory(newCat); setNewCat(''); setAddingCat(false) }}
+                >
+                  <input
+                    className="cat-chip-input"
+                    value={newCat}
+                    onChange={e => setNewCat(e.target.value)}
+                    onBlur={() => { setNewCat(''); setAddingCat(false) }}
+                    placeholder="새 카테고리"
+                    aria-label="새 카테고리 이름"
+                    autoFocus
+                  />
+                </form>
+              ) : (
+                <button type="button" className="cat-chip cat-chip-plus" onClick={() => setAddingCat(true)} aria-label="카테고리 추가">
+                  <Plus size={13} />
+                </button>
               )}
             </div>
           )}
@@ -193,6 +240,7 @@ export default function ChatbotPage() {
         <BotModal
           bot={editBot}
           categories={catList}
+          onAddCategory={addCategory}
           onSubmit={handleSubmit}
           onClose={() => { setShowModal(false); setEditBot(null) }}
           loading={saving}

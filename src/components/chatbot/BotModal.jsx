@@ -25,11 +25,18 @@ function toStored({ type, text, expect, selector }) {
   return selector.trim() ? { ...base, selector: selector.trim() } : base
 }
 
-export default function BotModal({ bot, onSubmit, onClose, loading, categories = [] }) {
+export default function BotModal({ bot, onSubmit, onClose, loading, categories = [], onAddCategory }) {
   const [name, setName] = useState(bot?.name ?? '')
   const [url, setUrl] = useState(bot?.url ?? '')
   const [category, setCategory] = useState(bot?.category ?? '')
+  const [addingCat, setAddingCat] = useState(false)
+  const [newCat, setNewCat] = useState('')
   const [steps, setSteps] = useState(bot?.scenario?.length ? bot.scenario.map(toEditable) : [emptyStep()])
+
+  const handleAddCat = async () => {
+    const added = await onAddCategory?.(newCat)
+    if (added) { setCategory(added); setNewCat(''); setAddingCat(false) }
+  }
 
   const setStep = (i, key, value) =>
     setSteps(prev => prev.map((s, idx) => idx === i ? { ...s, [key]: value } : s))
@@ -57,18 +64,36 @@ export default function BotModal({ bot, onSubmit, onClose, loading, categories =
         </div>
         <div className="form-field">
           <label className="form-label" htmlFor="bot-category">카테고리</label>
-          <input
-            id="bot-category"
-            className="form-input"
-            list="bot-category-options"
-            value={category}
-            onChange={e => setCategory(e.target.value)}
-            placeholder="예: 예약 — 비우면 미분류"
-          />
-          <datalist id="bot-category-options">
-            {categories.map(c => <option key={c} value={c} />)}
-          </datalist>
-          <p className="form-hint">같은 카테고리끼리 묶어서 한 번에 체크할 수 있습니다.</p>
+          <div className="cat-select-row">
+            <select
+              id="bot-category"
+              className="form-select"
+              value={category}
+              onChange={e => setCategory(e.target.value)}
+            >
+              <option value="">(미분류)</option>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              {category && !categories.includes(category) && <option value={category}>{category}</option>}
+            </select>
+            <button type="button" className="cat-add-btn" onClick={() => setAddingCat(a => !a)} aria-label="새 카테고리 추가" title="새 카테고리 추가">
+              <Plus size={14} />
+            </button>
+          </div>
+          {addingCat && (
+            <div className="cat-add-row">
+              <input
+                className="form-input"
+                value={newCat}
+                onChange={e => setNewCat(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCat() } }}
+                placeholder="새 카테고리 이름"
+                aria-label="새 카테고리 이름"
+                autoFocus
+              />
+              <button type="button" className="modal-submit" onClick={handleAddCat} disabled={!newCat.trim()}>추가</button>
+            </div>
+          )}
+          <p className="form-hint">같은 카테고리끼리 묶어서 한 번에 체크할 수 있습니다. ＋로 새 카테고리를 추가할 수 있어요.</p>
         </div>
         <div className="form-field">
           <label className="form-label">시나리오 (액션 → 기대 키워드)</label>
