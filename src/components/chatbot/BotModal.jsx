@@ -25,9 +25,10 @@ function toStored({ type, text, expect, selector }) {
   return selector.trim() ? { ...base, selector: selector.trim() } : base
 }
 
-export default function BotModal({ bot, onSubmit, onClose, loading }) {
+export default function BotModal({ bot, onSubmit, onClose, loading, categories = [] }) {
   const [name, setName] = useState(bot?.name ?? '')
   const [url, setUrl] = useState(bot?.url ?? '')
+  const [category, setCategory] = useState(bot?.category ?? '')
   const [steps, setSteps] = useState(bot?.scenario?.length ? bot.scenario.map(toEditable) : [emptyStep()])
 
   const setStep = (i, key, value) =>
@@ -38,7 +39,7 @@ export default function BotModal({ bot, onSubmit, onClose, loading }) {
   const handleSubmit = (e) => {
     e.preventDefault()
     const scenario = steps.filter(stepValid).map(toStored)
-    onSubmit({ name, url, scenario, input_selector: bot?.input_selector ?? null })
+    onSubmit({ name, url, category: category.trim() || null, scenario, input_selector: bot?.input_selector ?? null })
   }
 
   const valid = steps.some(stepValid)
@@ -53,6 +54,21 @@ export default function BotModal({ bot, onSubmit, onClose, loading }) {
         <div className="form-field">
           <label className="form-label" htmlFor="bot-url">챗봇 URL</label>
           <input id="bot-url" className="form-input mono" type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://..." required />
+        </div>
+        <div className="form-field">
+          <label className="form-label" htmlFor="bot-category">카테고리</label>
+          <input
+            id="bot-category"
+            className="form-input"
+            list="bot-category-options"
+            value={category}
+            onChange={e => setCategory(e.target.value)}
+            placeholder="예: 예약 — 비우면 미분류"
+          />
+          <datalist id="bot-category-options">
+            {categories.map(c => <option key={c} value={c} />)}
+          </datalist>
+          <p className="form-hint">같은 카테고리끼리 묶어서 한 번에 체크할 수 있습니다.</p>
         </div>
         <div className="form-field">
           <label className="form-label">시나리오 (액션 → 기대 키워드)</label>

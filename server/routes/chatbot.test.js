@@ -78,6 +78,22 @@ describe('POST /api/chatbot/bots', () => {
     expect(res.status).toBe(201)
     expect(res.body.name).toBe('코기')
   })
+
+  it('category 정규화: 공백/빈값은 null로 insert', async () => {
+    const q = mockQuery({ data: { id: 'b1' }, error: null })
+    mockFrom.mockReturnValueOnce(q)
+    await request(app).post('/api/chatbot/bots').set(AUTH)
+      .send({ name: 'x', url: 'https://x.y', scenario: [], category: '  ' })
+    expect(q.insert).toHaveBeenCalledWith(expect.objectContaining({ category: null }))
+  })
+
+  it('category 트림 후 저장', async () => {
+    const q = mockQuery({ data: { id: 'b1' }, error: null })
+    mockFrom.mockReturnValueOnce(q)
+    await request(app).post('/api/chatbot/bots').set(AUTH)
+      .send({ name: 'x', url: 'https://x.y', scenario: [], category: ' 예약 ' })
+    expect(q.insert).toHaveBeenCalledWith(expect.objectContaining({ category: '예약' }))
+  })
 })
 
 describe('PATCH /api/chatbot/bots/:id', () => {
@@ -91,6 +107,14 @@ describe('PATCH /api/chatbot/bots/:id', () => {
     const res = await request(app).patch('/api/chatbot/bots/b1').set(AUTH).send({ enabled: false })
     expect(res.status).toBe(200)
     expect(res.body.enabled).toBe(false)
+  })
+
+  it('category 수정 허용', async () => {
+    const q = mockQuery({ data: [{ id: 'b1', category: '결제' }], error: null })
+    mockFrom.mockReturnValueOnce(q)
+    const res = await request(app).patch('/api/chatbot/bots/b1').set(AUTH).send({ category: '결제' })
+    expect(res.status).toBe(200)
+    expect(q.update).toHaveBeenCalledWith(expect.objectContaining({ category: '결제' }))
   })
 })
 
@@ -129,6 +153,25 @@ describe('POST /api/chatbot/run-check', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({ ok: true, status: 204 })
     const res = await request(app).post('/api/chatbot/run-check').set(AUTH).send({ bot_id: 'b1' })
     expect(res.status).toBe(202)
+    const [, opts] = fetchSpy.mock.calls[0]
+    expect(JSON.parse(opts.body)).toEqual({ ref: 'main', inputs: { bot_id: 'b1' } })
+    fetchSpy.mockRestore()
+  })
+
+  it('카테고리 실행: category를 inputs로 전달', async () => {
+    process.env.GITHUB_TOKEN = 'ghp_test'
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({ ok: true, status: 204 })
+    const res = await request(app).post('/api/chatbot/run-check').set(AUTH).send({ category: '예약' })
+    expect(res.status).toBe(202)
+    const [, opts] = fetchSpy.mock.calls[0]
+    expect(JSON.parse(opts.body)).toEqual({ ref: 'main', inputs: { category: '예약' } })
+    fetchSpy.mockRestore()
+  })
+
+  it('bot_id가 category보다 우선', async () => {
+    process.env.GITHUB_TOKEN = 'ghp_test'
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({ ok: true, status: 204 })
+    await request(app).post('/api/chatbot/run-check').set(AUTH).send({ bot_id: 'b1', category: '예약' })
     const [, opts] = fetchSpy.mock.calls[0]
     expect(JSON.parse(opts.body)).toEqual({ ref: 'main', inputs: { bot_id: 'b1' } })
     fetchSpy.mockRestore()

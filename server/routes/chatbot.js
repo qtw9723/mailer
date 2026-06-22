@@ -5,7 +5,7 @@ import db from '../db.js'
 const router = Router()
 
 const ALLOWED_BOT_PATCH_FIELDS = new Set([
-  'name', 'url', 'scenario', 'input_selector', 'enabled', 'sort_order',
+  'name', 'url', 'scenario', 'input_selector', 'enabled', 'sort_order', 'category',
 ])
 
 function auth(req, res, next) {
@@ -49,11 +49,11 @@ router.get('/bots', auth, async (_req, res) => {
 
 // POST /api/chatbot/bots
 router.post('/bots', auth, async (req, res) => {
-  const { name, url, scenario, input_selector } = req.body
+  const { name, url, scenario, input_selector, category } = req.body
   try {
     const { data, error } = await db
       .from('chatbots')
-      .insert({ name, url, scenario: scenario ?? [], input_selector: input_selector || null })
+      .insert({ name, url, scenario: scenario ?? [], input_selector: input_selector || null, category: category?.trim() || null })
       .select()
       .single()
     if (error) throw error
@@ -68,6 +68,7 @@ router.patch('/bots/:id', auth, async (req, res) => {
   const keys = Object.keys(req.body).filter(k => ALLOWED_BOT_PATCH_FIELDS.has(k))
   if (keys.length === 0) return res.status(400).json({ error: 'no valid fields' })
   const updateObj = Object.fromEntries(keys.map(k => [k, req.body[k]]))
+  if ('category' in updateObj) updateObj.category = updateObj.category?.trim() || null
   try {
     const { data, error } = await db
       .from('chatbots')
@@ -99,7 +100,9 @@ router.post('/run-check', auth, async (req, res) => {
     return res.status(503).json({ error: 'GITHUB_TOKEN이 설정되지 않았습니다. Fine-grained 토큰(Actions: write)을 환경변수에 추가하세요.' })
   }
   const repo = process.env.GITHUB_REPO ?? 'qtw9723/mailer'
-  const { bot_id } = req.body ?? {}
+  const { bot_id, category } = req.body ?? {}
+  // bot_id(단건) 우선, 없으면 category(그룹). 둘 다 없으면 전체.
+  const inputs = bot_id ? { bot_id } : category ? { category } : {}
   try {
     const ghRes = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/chatbot-check.yml/dispatches`, {
       method: 'POST',
@@ -109,7 +112,7 @@ router.post('/run-check', auth, async (req, res) => {
         'Content-Type': 'application/json',
         'User-Agent': 'cs-smarthub',
       },
-      body: JSON.stringify({ ref: 'main', inputs: bot_id ? { bot_id } : {} }),
+      body: JSON.stringify({ ref: 'main', inputs }),
     })
     if (!ghRes.ok) {
       const text = await ghRes.text()

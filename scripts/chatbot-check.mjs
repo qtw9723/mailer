@@ -117,8 +117,16 @@ async function notifyFailures(failures) {
   console.log(`실패 알림 메일 발송: ${recipients.length}명`)
 }
 
+// 부분 실행: 단건(BOT_ID) 또는 카테고리(CATEGORY). 둘 다 있으면 BOT_ID 우선.
+const isSubset = Boolean(process.env.BOT_ID || process.env.CATEGORY)
 let query = db.from('chatbots').select('*').eq('enabled', true)
-if (process.env.BOT_ID) query = query.eq('id', process.env.BOT_ID)
+if (process.env.BOT_ID) {
+  query = query.eq('id', process.env.BOT_ID)
+} else if (process.env.CATEGORY) {
+  query = process.env.CATEGORY === '__none__'
+    ? query.is('category', null)
+    : query.eq('category', process.env.CATEGORY)
+}
 const { data: bots, error } = await query
 if (error) { console.error('봇 목록 조회 실패:', error.message); process.exit(1) }
 
@@ -137,6 +145,6 @@ for (const bot of targets) {
   if (!result.ok) failures.push({ name: bot.name, detail: result.detail })
 }
 await browser.close()
-if (process.env.BOT_ID) console.log('단건 테스트 실행 — 메일 알림 생략')
+if (isSubset) console.log('부분 실행(단건/카테고리) — 메일 알림 생략')
 else await notifyFailures(failures)
 console.log(`완료: 성공 ${targets.length - failures.length} / 실패 ${failures.length}`)
