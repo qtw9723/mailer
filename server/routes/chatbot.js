@@ -124,6 +124,48 @@ router.post('/run-check', auth, async (req, res) => {
   }
 })
 
+// PATCH /api/chatbot/categories — 카테고리 이름 변경(봇까지 일괄 반영)
+router.patch('/categories', auth, async (req, res) => {
+  const from = req.body?.from
+  const to = (req.body?.to ?? '').trim()
+  if (!from || !to) return res.status(400).json({ error: 'from/to required' })
+  try {
+    const { error: e1 } = await db.from('chatbots').update({ category: to }).eq('category', from)
+    if (e1) throw e1
+    const { data: s, error: e2 } = await db.from('chatbot_monitor_settings').select('categories').eq('id', 1).single()
+    if (e2) throw e2
+    const seen = new Set()
+    const categories = (s?.categories ?? [])
+      .map(c => (c === from ? to : c)).map(c => String(c).trim())
+      .filter(c => c && !seen.has(c) && seen.add(c))
+    const { data, error: e3 } = await db.from('chatbot_monitor_settings')
+      .update({ categories, updated_at: new Date().toISOString() }).eq('id', 1).select().single()
+    if (e3) throw e3
+    res.json(data)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// DELETE /api/chatbot/categories — 카테고리 삭제(해당 봇은 미분류로 이동)
+router.delete('/categories', auth, async (req, res) => {
+  const name = req.body?.name
+  if (!name) return res.status(400).json({ error: 'name required' })
+  try {
+    const { error: e1 } = await db.from('chatbots').update({ category: null }).eq('category', name)
+    if (e1) throw e1
+    const { data: s, error: e2 } = await db.from('chatbot_monitor_settings').select('categories').eq('id', 1).single()
+    if (e2) throw e2
+    const categories = (s?.categories ?? []).filter(c => c !== name)
+    const { data, error: e3 } = await db.from('chatbot_monitor_settings')
+      .update({ categories, updated_at: new Date().toISOString() }).eq('id', 1).select().single()
+    if (e3) throw e3
+    res.json(data)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 // GET /api/chatbot/settings
 router.get('/settings', auth, async (_req, res) => {
   try {

@@ -3,12 +3,13 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Play } from 'lucide-react'
 import { toast } from 'sonner'
-import { getBots, createBot, updateBot, deleteBot, runCheck, getChatbotSettings, updateChatbotSettings } from '../lib/api/chatbot.js'
+import { getBots, createBot, updateBot, deleteBot, runCheck, getChatbotSettings, updateChatbotSettings, renameCategory as apiRenameCategory, deleteCategory as apiDeleteCategory } from '../lib/api/chatbot.js'
 import { getCookie, clearCookie } from '../lib/auth.js'
 import AppHeader from '../components/shared/AppHeader.jsx'
 import ConfirmDialog from '../components/shared/ConfirmDialog.jsx'
 import BotRow from '../components/chatbot/BotRow.jsx'
 import BotModal from '../components/chatbot/BotModal.jsx'
+import CategoryChips from '../components/chatbot/CategoryChips.jsx'
 import ChatbotSettings from '../components/chatbot/ChatbotSettings.jsx'
 
 // 미분류(category null) 그룹 실행용 센티넬 — 러너가 .is('category', null)로 해석
@@ -28,8 +29,6 @@ export default function ChatbotPage() {
   const [running, setRunning] = useState(false)
   const [activeCat, setActiveCat] = useState(null) // null = 전체, UNCAT = 미분류
   const [categories, setCategories] = useState([]) // 관리 목록(settings.categories)
-  const [addingCat, setAddingCat] = useState(false)
-  const [newCat, setNewCat] = useState('')
 
   // 칩 목록: 관리 목록 + 봇에 박힌 카테고리(미백필 대비) 합집합
   const catList = useMemo(() => {
@@ -81,6 +80,50 @@ export default function ChatbotPage() {
       toast.error('카테고리 추가에 실패했습니다')
       return null
     }
+  }
+
+  // 카테고리 이름 변경 — 봇까지 일괄 반영(낙관적)
+  const renameCategory = async (from, to) => {
+    const t = (to ?? '').trim()
+    if (!t || t === from) return
+    if (catList.includes(t)) { toast.error('이미 있는 카테고리입니다'); return }
+    const prevCats = categories, prevBots = bots
+    setCategories(cs => cs.map(c => (c === from ? t : c)))
+    setBots(bs => bs.map(b => (b.category === from ? { ...b, category: t } : b)))
+    if (activeCat === from) setActiveCat(t)
+    try {
+      await apiRenameCategory(from, t, password)
+      toast.success(`"${from}" → "${t}" 이름을 변경했습니다`)
+    } catch {
+      setCategories(prevCats); setBots(prevBots)
+      toast.error('이름 변경에 실패했습니다')
+    }
+  }
+
+  // 카테고리 삭제 — 해당 봇은 미분류로 이동(확인 다이얼로그)
+  const requestDeleteCategory = (name) => {
+    const n = bots.filter(b => b.category === name).length
+    setConfirm({
+      title: '카테고리 삭제',
+      message: n > 0
+        ? `"${name}"을(를) 삭제하면 ${n}개 봇이 미분류로 이동합니다. 계속할까요?`
+        : `"${name}"을(를) 삭제할까요?`,
+      confirmLabel: '삭제',
+      danger: true,
+      action: async () => {
+        const prevCats = categories, prevBots = bots
+        setCategories(cs => cs.filter(c => c !== name))
+        setBots(bs => bs.map(b => (b.category === name ? { ...b, category: null } : b)))
+        if (activeCat === name) setActiveCat(null)
+        try {
+          await apiDeleteCategory(name, password)
+          toast.success('카테고리를 삭제했습니다')
+        } catch {
+          setCategories(prevCats); setBots(prevBots)
+          toast.error('삭제에 실패했습니다')
+        }
+      },
+    })
   }
 
   const handleSubmit = async (data) => {
@@ -176,35 +219,16 @@ export default function ChatbotPage() {
         <div className="job-list">
           <p className="form-hint">매일 08:30 KST 자동 체크 · GitHub Actions에서 수동 실행 가능</p>
           {(catList.length > 0 || bots.length > 0) && (
-            <div className="cat-chips">
-              <button type="button" className={`cat-chip${activeCat == null ? ' active' : ''}`} onClick={() => setActiveCat(null)}>전체</button>
-              {catList.map(c => (
-                <button type="button" key={c} className={`cat-chip${activeCat === c ? ' active' : ''}`} onClick={() => setActiveCat(c)}>{c}</button>
-              ))}
-              {hasUncat && (
-                <button type="button" className={`cat-chip${activeCat === UNCAT ? ' active' : ''}`} onClick={() => setActiveCat(UNCAT)}>미분류</button>
-              )}
-              {addingCat ? (
-                <form
-                  className="cat-chip-add"
-                  onSubmit={async (e) => { e.preventDefault(); await addCategory(newCat); setNewCat(''); setAddingCat(false) }}
-                >
-                  <input
-                    className="cat-chip-input"
-                    value={newCat}
-                    onChange={e => setNewCat(e.target.value)}
-                    onBlur={() => { setNewCat(''); setAddingCat(false) }}
-                    placeholder="새 카테고리"
-                    aria-label="새 카테고리 이름"
-                    autoFocus
-                  />
-                </form>
-              ) : (
-                <button type="button" className="cat-chip cat-chip-plus" onClick={() => setAddingCat(true)} aria-label="카테고리 추가">
-                  <Plus size={13} />
-                </button>
-              )}
-            </div>
+            <CategoryChips
+              categories={catList}
+              hasUncat={hasUncat}
+              activeCat={activeCat}
+              uncatValue={UNCAT}
+              onSelect={setActiveCat}
+              onAdd={addCategory}
+              onRename={renameCategory}
+              onRequestDelete={requestDeleteCategory}
+            />
           )}
           {initialLoading ? (
             <>

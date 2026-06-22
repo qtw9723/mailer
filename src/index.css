@@ -725,8 +725,27 @@ body {
   border-color: var(--color-accent);
   background: color-mix(in srgb, var(--color-accent) 10%, transparent);
 }
-.cat-chip-plus { display: inline-flex; align-items: center; justify-content: center; padding: 4px 9px; }
-.cat-chip-add { display: inline-flex; }
+.cat-chip-icon { display: inline-flex; align-items: center; justify-content: center; padding: 4px 9px; }
+.cat-chip-add { display: inline-flex; gap: 4px; align-items: center; }
+.cat-chip-done { font-weight: 600; }
+.cat-chip-empty { font-size: 12px; color: var(--color-text-secondary); align-self: center; }
+
+/* 관리 모드: 이름 변경 + 삭제 칩 */
+.cat-chip-edit { display: inline-flex; align-items: center; gap: 2px; padding: 0 4px 0 0; }
+.cat-chip-name {
+  padding: 4px 6px 4px 12px; height: 26px;
+  font-size: 12px; font-weight: 500; font-family: inherit;
+  color: var(--color-text-primary); background: none; border: none;
+  cursor: pointer; border-radius: 20px;
+}
+.cat-chip-name:hover { color: var(--color-accent); }
+.cat-chip-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  color: var(--color-text-secondary); background: none; border: none; cursor: pointer;
+  transition: color 150ms, background 150ms;
+}
+.cat-chip-x:hover { color: var(--color-status-error); background: color-mix(in srgb, var(--color-status-error) 14%, transparent); }
 .cat-chip-input {
   height: 28px; width: 120px; padding: 0 12px;
   font-size: 12px; font-family: inherit;

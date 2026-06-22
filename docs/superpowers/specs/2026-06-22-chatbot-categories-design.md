@@ -76,4 +76,11 @@ ALTER TABLE chatbots ADD COLUMN IF NOT EXISTS category TEXT;
 - 두 진입점 모두 동일한 `addCategory(name)` → `PUT /settings { categories }`(낙관적 갱신). 트림·중복·빈값 제거.
 - **칩 목록 출처**: 봇에서 파생이 아니라 **관리 목록(settings.categories)** + 봇 중 미분류 존재 시 "미분류".
 - `PUT /settings`는 부분 갱신: 제공된 `recipients`/`categories`만 변경(서로 덮어쓰지 않음).
-- 카테고리 삭제/이름변경은 여전히 범위 밖.
+## 개정 (2026-06-22): 카테고리 이름변경 + 삭제
+
+칩바 끝 **"관리(✎)" 토글** → 각 카테고리 칩이 인라인 이름변경 + ✕삭제로 전환(`CategoryChips` 컴포넌트로 칩바 분리).
+
+- **이름변경**: `PATCH /categories { from, to }` — `chatbots` 중 해당 category 일괄 변경 + settings 목록 치환(트림·중복 제거). 봇까지 일괄 반영.
+- **삭제**: `DELETE /categories { name }` — 해당 봇은 `category=null`(미분류)로 이동 + 목록에서 제거. **봇 N개 있으면 확인 다이얼로그에 개수 표시**.
+- 프론트는 낙관적 갱신(실패 시 롤백). 삭제 대상 봇 수는 이미 로드된 bots에서 계산(별도 호출 없음).
+- 스키마 변경 없음(기존 categories 컬럼/엔드포인트 재사용).
