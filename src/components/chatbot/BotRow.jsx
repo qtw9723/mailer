@@ -16,7 +16,10 @@ export default function BotRow({ bot, onToggle, onEdit, onDelete, onRunCheck, to
       <div className="job-row-main">
         <span className={`status-dot ${dotClass}`} />
         <div className="job-row-title">
-          <span className="job-row-name">{bot.name}</span>
+          <span className="job-row-name">
+            {bot.name}
+            {bot.category && <span className="cat-badge">{bot.category}</span>}
+          </span>
           <span className="job-row-sub">
             <span className="mono">{host}</span>
             {last && <> · 마지막 체크: <span className="mono">{fmtKst(last.checked_at)}</span> · {last.ok ? '성공' : '실패'}</>}

@@ -8,6 +8,10 @@ on:
         description: '특정 봇만 체크 (chatbots.id, 비우면 전체)'
         required: false
         type: string
+      category:
+        description: '특정 카테고리만 체크 (__none__ = 미분류, 비우면 전체)'
+        required: false
+        type: string
 
 jobs:
   check:
@@ -26,6 +30,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           BOT_ID: ${{ inputs.bot_id }}
+          CATEGORY: ${{ inputs.category }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

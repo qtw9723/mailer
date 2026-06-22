@@ -1,5 +1,5 @@
 // src/pages/ChatbotPage.jsx
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Play } from 'lucide-react'
 import { toast } from 'sonner'
@@ -10,6 +10,9 @@ import ConfirmDialog from '../components/shared/ConfirmDialog.jsx'
 import BotRow from '../components/chatbot/BotRow.jsx'
 import BotModal from '../components/chatbot/BotModal.jsx'
 import ChatbotSettings from '../components/chatbot/ChatbotSettings.jsx'
+
+// 미분류(category null) 그룹 실행용 센티넬 — 러너가 .is('category', null)로 해석
+const UNCAT = '__none__'
 
 export default function ChatbotPage() {
   const navigate = useNavigate()
@@ -23,6 +26,23 @@ export default function ChatbotPage() {
   const [confirm, setConfirm] = useState(null)
   const [togglingIds, setTogglingIds] = useState(new Set())
   const [running, setRunning] = useState(false)
+  const [activeCat, setActiveCat] = useState(null) // null = 전체, UNCAT = 미분류
+
+  const { list: catList, hasUncat } = useMemo(() => {
+    const set = new Set()
+    let uncat = false
+    for (const b of bots) { if (b.category) set.add(b.category); else uncat = true }
+    return { list: [...set].sort((a, b) => a.localeCompare(b, 'ko')), hasUncat: uncat }
+  }, [bots])
+
+  const visibleBots = activeCat == null ? bots
+    : activeCat === UNCAT ? bots.filter(b => !b.category)
+    : bots.filter(b => b.category === activeCat)
+
+  const runTarget = activeCat == null ? null
+    : activeCat === UNCAT ? { category: UNCAT, label: '미분류' }
+    : { category: activeCat, label: activeCat }
+  const runLabel = activeCat == null ? '전체 체크' : `"${runTarget.label}" 체크`
 
   const refresh = useCallback(async () => {
     try {
@@ -72,12 +92,13 @@ export default function ChatbotPage() {
     }
   }
 
-  const handleRunCheck = async (bot = null) => {
+  // target: { botId, label } 단건 / { category, label } 그룹 / null 전체
+  const handleRunCheck = async (target = null) => {
     setRunning(true)
     try {
-      await runCheck(bot?.id ?? null, password)
+      await runCheck(target, password)
       toast.success(
-        bot ? `"${bot.name}" 테스트를 요청했습니다` : '전체 체크를 요청했습니다',
+        target ? `${target.label} 테스트를 요청했습니다` : '전체 체크를 요청했습니다',
         { description: '약 2~3분 후 새로고침하면 결과가 반영됩니다' },
       )
     } catch (e) {
@@ -109,8 +130,8 @@ export default function ChatbotPage() {
       <AppHeader toolName="챗봇 모니터링">
         {tab === 'bots' && (
           <>
-            <button className="app-new-btn" onClick={() => handleRunCheck()} disabled={running || bots.length === 0}>
-              <Play size={14} /> {running ? '요청 중…' : '전체 체크'}
+            <button className="app-new-btn" onClick={() => handleRunCheck(runTarget)} disabled={running || visibleBots.length === 0}>
+              <Play size={14} /> {running ? '요청 중…' : runLabel}
             </button>
             <button className="app-new-btn" onClick={() => { setEditBot(null); setShowModal(true) }}>
               <Plus size={14} /> 챗봇 등록
@@ -127,6 +148,17 @@ export default function ChatbotPage() {
       {tab === 'bots' ? (
         <div className="job-list">
           <p className="form-hint">매일 08:30 KST 자동 체크 · GitHub Actions에서 수동 실행 가능</p>
+          {(catList.length > 0 || hasUncat) && (
+            <div className="cat-chips">
+              <button type="button" className={`cat-chip${activeCat == null ? ' active' : ''}`} onClick={() => setActiveCat(null)}>전체</button>
+              {catList.map(c => (
+                <button type="button" key={c} className={`cat-chip${activeCat === c ? ' active' : ''}`} onClick={() => setActiveCat(c)}>{c}</button>
+              ))}
+              {hasUncat && (
+                <button type="button" className={`cat-chip${activeCat === UNCAT ? ' active' : ''}`} onClick={() => setActiveCat(UNCAT)}>미분류</button>
+              )}
+            </div>
+          )}
           {initialLoading ? (
             <>
               <div className="job-skeleton" />
@@ -140,7 +172,7 @@ export default function ChatbotPage() {
               </button>
             </div>
           ) : (
-            bots.map(bot => (
+            visibleBots.map(bot => (
               <BotRow
                 key={bot.id}
                 bot={bot}
@@ -148,7 +180,7 @@ export default function ChatbotPage() {
                 onToggle={() => handleToggle(bot)}
                 onEdit={() => { setEditBot(bot); setShowModal(true) }}
                 onDelete={() => requestDelete(bot)}
-                onRunCheck={() => handleRunCheck(bot)}
+                onRunCheck={() => handleRunCheck({ botId: bot.id, label: `"${bot.name}"` })}
               />
             ))
           )}
@@ -160,6 +192,7 @@ export default function ChatbotPage() {
       {showModal && (
         <BotModal
           bot={editBot}
+          categories={catList}
           onSubmit={handleSubmit}
           onClose={() => { setShowModal(false); setEditBot(null) }}
           loading={saving}

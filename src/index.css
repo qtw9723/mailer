@@ -708,6 +708,33 @@ body {
 .nav-tab:hover { color: var(--color-text-primary); }
 .nav-tab.active { color: var(--color-accent); border-bottom-color: var(--color-accent); }
 
+/* ── 카테고리 필터 칩 ── */
+.cat-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+.cat-chip {
+  padding: 4px 12px; height: 28px;
+  font-size: 12px; font-weight: 500; font-family: inherit;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 20px; cursor: pointer;
+  transition: color 150ms, border-color 150ms, background 150ms;
+}
+.cat-chip:hover { color: var(--color-text-primary); border-color: var(--color-border-strong); }
+.cat-chip.active {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+/* 봇 행의 카테고리 뱃지 */
+.cat-badge {
+  margin-left: 8px; font-size: 10px; font-weight: 500;
+  padding: 1px 7px; border-radius: 20px; vertical-align: middle;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-hover);
+  border: 1px solid var(--color-border-subtle);
+}
+
 /* ── 발신 계정 페이지 ── */
 .sender-page { max-width: 920px; margin: 24px auto; padding: 0 24px; }
 .sender-list { display: flex; flex-direction: column; gap: 10px; }
