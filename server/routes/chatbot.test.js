@@ -186,6 +186,43 @@ describe('POST /api/chatbot/run-check', () => {
   })
 })
 
+describe('PATCH /api/chatbot/categories (이름 변경)', () => {
+  it('from/to 누락이면 400', async () => {
+    expect((await request(app).patch('/api/chatbot/categories').set(AUTH).send({ from: '예약' })).status).toBe(400)
+    expect((await request(app).patch('/api/chatbot/categories').set(AUTH).send({ to: '  ' })).status).toBe(400)
+  })
+
+  it('봇 일괄 변경 + 관리 목록 이름 변경', async () => {
+    const botsQ = mockQuery({ error: null })
+    const getQ = mockQuery({ data: { categories: ['예약', '결제'] }, error: null })
+    const updQ = mockQuery({ data: { id: 1, categories: ['상담', '결제'] }, error: null })
+    mockFrom.mockReturnValueOnce(botsQ).mockReturnValueOnce(getQ).mockReturnValueOnce(updQ)
+    const res = await request(app).patch('/api/chatbot/categories').set(AUTH).send({ from: '예약', to: ' 상담 ' })
+    expect(res.status).toBe(200)
+    expect(botsQ.update).toHaveBeenCalledWith({ category: '상담' })
+    expect(botsQ.eq).toHaveBeenCalledWith('category', '예약')
+    expect(updQ.update).toHaveBeenCalledWith(expect.objectContaining({ categories: ['상담', '결제'] }))
+  })
+})
+
+describe('DELETE /api/chatbot/categories (삭제)', () => {
+  it('name 누락이면 400', async () => {
+    expect((await request(app).delete('/api/chatbot/categories').set(AUTH).send({})).status).toBe(400)
+  })
+
+  it('해당 봇은 미분류(null) + 관리 목록에서 제거', async () => {
+    const botsQ = mockQuery({ error: null })
+    const getQ = mockQuery({ data: { categories: ['예약', '결제'] }, error: null })
+    const updQ = mockQuery({ data: { id: 1, categories: ['결제'] }, error: null })
+    mockFrom.mockReturnValueOnce(botsQ).mockReturnValueOnce(getQ).mockReturnValueOnce(updQ)
+    const res = await request(app).delete('/api/chatbot/categories').set(AUTH).send({ name: '예약' })
+    expect(res.status).toBe(200)
+    expect(botsQ.update).toHaveBeenCalledWith({ category: null })
+    expect(botsQ.eq).toHaveBeenCalledWith('category', '예약')
+    expect(updQ.update).toHaveBeenCalledWith(expect.objectContaining({ categories: ['결제'] }))
+  })
+})
+
 describe('settings', () => {
   it('GET: 단일 행 반환', async () => {
     mockFrom.mockReturnValueOnce(mockQuery({ data: { id: 1, recipients: ['a@b.c'] }, error: null }))

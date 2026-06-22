@@ -25,6 +25,8 @@ export const updateBot = (id, patch, pw) => request('PATCH', `/bots/${id}`, patc
 export const deleteBot = (id, pw) => request('DELETE', `/bots/${id}`, null, pw)
 export const getChatbotSettings = (pw) => request('GET', '/settings', null, pw)
 export const updateChatbotSettings = (body, pw) => request('PUT', '/settings', body, pw)
+export const renameCategory = (from, to, pw) => request('PATCH', '/categories', { from, to }, pw)
+export const deleteCategory = (name, pw) => request('DELETE', '/categories', { name }, pw)
 // target: { botId } 단건 / { category } 그룹 / 없으면 전체
 export const runCheck = (target, pw) => {
   const body = target?.botId ? { bot_id: target.botId } : target?.category ? { category: target.category } : {}
