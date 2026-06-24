@@ -186,6 +186,49 @@ describe('POST /api/chatbot/run-check', () => {
   })
 })
 
+describe('GET /api/chatbot/dispatch (pg_cron 정시 트리거)', () => {
+  const CRON = { authorization: 'Bearer cron-secret' }
+
+  beforeEach(() => {
+    process.env.CRON_SECRET = 'cron-secret'
+    process.env.GITHUB_TOKEN = 'ghp_test'
+  })
+
+  it('CRON_SECRET 불일치면 401', async () => {
+    const res = await request(app).get('/api/chatbot/dispatch').set({ authorization: 'Bearer wrong' })
+    expect(res.status).toBe(401)
+  })
+
+  it('CRON_SECRET 미설정이면 401 (헤더만으로 통과 불가)', async () => {
+    delete process.env.CRON_SECRET
+    const res = await request(app).get('/api/chatbot/dispatch').set(CRON)
+    expect(res.status).toBe(401)
+  })
+
+  it('GITHUB_TOKEN 미설정이면 503', async () => {
+    delete process.env.GITHUB_TOKEN
+    const res = await request(app).get('/api/chatbot/dispatch').set(CRON)
+    expect(res.status).toBe(503)
+  })
+
+  it('전체 봇 체크 디스패치: inputs 없이 202', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({ ok: true, status: 204 })
+    const res = await request(app).get('/api/chatbot/dispatch').set(CRON)
+    expect(res.status).toBe(202)
+    const [url, opts] = fetchSpy.mock.calls[0]
+    expect(url).toContain('/actions/workflows/chatbot-check.yml/dispatches')
+    expect(JSON.parse(opts.body)).toEqual({ ref: 'main', inputs: {} })
+    fetchSpy.mockRestore()
+  })
+
+  it('GitHub API 실패 시 502', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({ ok: false, status: 401, text: async () => 'Bad credentials' })
+    const res = await request(app).get('/api/chatbot/dispatch').set(CRON)
+    expect(res.status).toBe(502)
+    fetchSpy.mockRestore()
+  })
+})
+
 describe('PATCH /api/chatbot/categories (이름 변경)', () => {
   it('from/to 누락이면 400', async () => {
     expect((await request(app).patch('/api/chatbot/categories').set(AUTH).send({ from: '예약' })).status).toBe(400)

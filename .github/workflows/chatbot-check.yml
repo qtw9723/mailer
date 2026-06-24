@@ -1,7 +1,8 @@
 name: chatbot-check
 on:
-  schedule:
-    - cron: '30 23 * * *'   # 매일 08:30 KST
+  # 정시 트리거는 Supabase pg_cron(chatbot-check-dispatch, 23:30 UTC = 08:30 KST)이
+  # /api/chatbot/dispatch를 호출해 workflow_dispatch로 일으킨다.
+  # GitHub on:schedule은 best-effort라 매일 ~2h씩 밀려(실측 10~11시 KST) 제거함.
   workflow_dispatch:
     inputs:
       bot_id:
