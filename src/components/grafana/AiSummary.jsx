@@ -4,9 +4,13 @@ import { toast } from 'sonner'
 import { analyzeNow } from '../../lib/api/grafana.js'
 import { fmtKst } from '../../lib/datetime.js'
 
-// markdown 불릿 문자열 → 항목 배열
+// markdown 불릿 문자열 → 항목 배열. 줄바꿈 우선, 한 줄이면 " - "/" • " 구분자로도 분해.
 function toBullets(text) {
-  return String(text ?? '').split('\n').map((l) => l.replace(/^\s*[-*]\s*/, '').trim()).filter(Boolean)
+  const s = String(text ?? '').trim()
+  if (!s) return []
+  let parts = s.split('\n')
+  if (parts.length === 1) parts = s.split(/\s+[-*•]\s+/)
+  return parts.map((l) => l.replace(/^\s*[-*•]\s*/, '').trim()).filter(Boolean)
 }
 
 // 리포트 탭 상단의 "AI 점검 요약". analysis는 저장된 최신 분석({summary, generated_at}) 또는 null.
