@@ -146,6 +146,16 @@ describe('buildEmailHtml', () => {
     expect(html).toContain('&lt;script&gt;')
     expect(html).not.toContain('<script>x')
   })
+  it('summary 주어지면 AI 점검 요약 블록 포함(불릿 정리·이스케이프)', () => {
+    const html = buildEmailHtml(baseReport(), '- 점검A\n- <b>점검B</b>')
+    expect(html).toContain('AI 점검 요약')
+    expect(html).toContain('<li')
+    expect(html).toContain('점검A')
+    expect(html).toContain('&lt;b&gt;점검B')
+  })
+  it('summary 비면 요약 블록 없음', () => {
+    expect(buildEmailHtml(baseReport(), '')).not.toContain('AI 점검 요약')
+  })
 })
 
 describe('esLogRange', () => {

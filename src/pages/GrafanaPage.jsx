@@ -6,6 +6,8 @@ import { getCookie, clearCookie } from '../lib/auth.js'
 import { fmtKst } from '../lib/datetime.js'
 import AppHeader from '../components/shared/AppHeader.jsx'
 import GrafanaSettings from '../components/grafana/GrafanaSettings.jsx'
+import AiSummary from '../components/grafana/AiSummary.jsx'
+import LogTypesTab from '../components/grafana/LogTypesTab.jsx'
 
 function LogGroup({ group }) {
   const [expanded, setExpanded] = useState(null) // 펼친 행 인덱스
@@ -72,12 +74,15 @@ export default function GrafanaPage() {
 
       <nav className="nav-tabs">
         <button className={`nav-tab${tab === 'report' ? ' active' : ''}`} onClick={() => setTab('report')}>리포트</button>
+        <button className={`nav-tab${tab === 'logtypes' ? ' active' : ''}`} onClick={() => setTab('logtypes')}>로그 유형</button>
         <button className={`nav-tab${tab === 'settings' ? ' active' : ''}`} onClick={() => setTab('settings')}>설정</button>
       </nav>
 
       <div className="grafana-wrap">
         {tab === 'settings' ? (
           <GrafanaSettings />
+        ) : tab === 'logtypes' ? (
+          <LogTypesTab password={password} />
         ) : (
           <>
             {error && <div className="grafana-error">{error}</div>}
@@ -89,6 +94,8 @@ export default function GrafanaPage() {
                   {alerts ? `이상 ${alerts}건 — 점검 필요` : '모두 정상입니다'}
                   <span className="grafana-time mono">{fmtKst(report.generatedAt)} (KST)</span>
                 </div>
+
+                <AiSummary analysis={report.analysis} password={password} />
 
                 <section className="grafana-section">
                   <h3 className="grafana-section-title">리소스 사용량</h3>

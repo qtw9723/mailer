@@ -5,6 +5,8 @@ import { buildReport, buildEmailHtml } from '../grafana/report.js'
 import { sendReportEmail } from '../grafana/email.js'
 import { getSettings, saveSettings, markSent } from '../grafana/settings.js'
 import { shouldSend, kstDateString } from '../grafana/schedule.js'
+import { analyzeLogs } from '../grafana/analyze.js'
+import { listTypes, getType, updateType, deleteType, resolveAndPersist } from '../grafana/logTypes.js'
 import { LOG_INDEX_LAG_HOURS, LOG_HOURS, LOG_FETCH, DEFAULT_METRICS, DEFAULT_LOG_QUERIES } from '../grafana/config.js'
 
 const router = Router()
@@ -58,9 +60,74 @@ router.get('/report', auth, async (_req, res) => {
   const logQueries = settings?.log_queries ?? DEFAULT_LOG_QUERIES
   try {
     const report = buildReport(await gatherReportData(metrics, logQueries, lagHours))
-    res.json(report)
+    // 저장된 최신 LLM 분석 요약을 함께 반환(LLM 미호출 — 저렴). 발송 시각에만 갱신됨.
+    res.json({ ...report, analysis: settings?.last_analysis ?? null })
   } catch (e) {
     res.status(502).json({ error: e.message })
+  }
+})
+
+// POST /api/grafana/analyze — 현재 로그로 LLM 1회 분석(미리보기, 저장 안 함)
+router.post('/analyze', auth, async (_req, res) => {
+  let settings = null
+  try { settings = await getSettings() } catch { /* 기본값 폴백 */ }
+  const metrics = settings?.metrics ?? DEFAULT_METRICS
+  const logQueries = settings?.log_queries ?? DEFAULT_LOG_QUERIES
+  try {
+    const { logs } = await gatherReportData(metrics, logQueries, lagFrom(settings))
+    let existing = []
+    try { existing = await listTypes() } catch { /* 기존 유형 없어도 진행 */ }
+    const analysis = await analyzeLogs(logs, existing)
+    res.json(analysis)
+  } catch (e) {
+    const code = /GEMINI_API_KEY/.test(e.message) ? 503 : 502
+    res.status(code).json({ error: e.message })
+  }
+})
+
+// GET /api/grafana/log-types — 영속 유형 목록
+router.get('/log-types', auth, async (_req, res) => {
+  try {
+    res.json(await listTypes())
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// GET /api/grafana/log-types/:id — 유형 + 회차 로그
+router.get('/log-types/:id', auth, async (req, res) => {
+  try {
+    const t = await getType(req.params.id)
+    if (!t) return res.status(404).json({ error: 'not found' })
+    res.json(t)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// PATCH /api/grafana/log-types/:id — note/label/description 수정
+router.patch('/log-types/:id', auth, async (req, res) => {
+  const fields = {}
+  for (const k of ['note', 'label', 'description']) {
+    if (req.body[k] !== undefined) fields[k] = req.body[k] == null ? null : String(req.body[k])
+  }
+  if (Object.keys(fields).length === 0) return res.status(400).json({ error: 'no valid fields' })
+  try {
+    const t = await updateType(req.params.id, fields)
+    if (!t) return res.status(404).json({ error: 'not found' })
+    res.json(t)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// DELETE /api/grafana/log-types/:id
+router.delete('/log-types/:id', auth, async (req, res) => {
+  try {
+    await deleteType(req.params.id)
+    res.json({ success: true })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
   }
 })
 
@@ -123,8 +190,21 @@ router.get('/tick', async (req, res) => {
     const recipients = settings.recipients?.length ? settings.recipients : envRecipients()
     if (recipients.length === 0) return res.json({ sent: false, reason: 'no-recipients' })
 
-    const report = buildReport(await gatherReportData(settings.metrics, settings.log_queries, lagFrom(settings)))
-    await sendReportEmail(buildEmailHtml(report), recipients)
+    const data = await gatherReportData(settings.metrics, settings.log_queries, lagFrom(settings))
+    const report = buildReport(data)
+
+    // LLM 분석은 best-effort: 실패해도 리포트/메일은 정상 발송. 저장은 이 시점(tick)에만.
+    let summary = ''
+    try {
+      const analysis = await analyzeLogs(data.logs, await listTypes())
+      summary = analysis.summary ?? ''
+      if (analysis.types.length || summary) {
+        if (analysis.types.length) await resolveAndPersist(analysis, now.toISOString())
+        await saveSettings({ last_analysis: { summary, generated_at: now.toISOString() } })
+      }
+    } catch { /* 분석 생략하고 발송 진행 */ }
+
+    await sendReportEmail(buildEmailHtml(report, summary), recipients)
     await markSent(kstDateString(now))
     res.json({ sent: true, alerts: report.summary.alerts })
   } catch (e) {

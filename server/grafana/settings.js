@@ -21,7 +21,7 @@ export async function getSettings() {
 
 // 제공된 필드만 저장(undefined 키는 건드리지 않음 — 부분 업데이트).
 export async function saveSettings(fields) {
-  const allowed = ['recipients', 'send_hour', 'enabled', 'log_lag_hours', 'metrics', 'log_queries']
+  const allowed = ['recipients', 'send_hour', 'enabled', 'log_lag_hours', 'metrics', 'log_queries', 'last_analysis']
   const update = { updated_at: new Date().toISOString() }
   for (const k of allowed) if (fields[k] !== undefined) update[k] = fields[k]
 
