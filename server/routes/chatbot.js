@@ -15,6 +15,30 @@ function auth(req, res, next) {
   next()
 }
 
+// pg_cron 등 자동 트리거용 인증 (grafana tick과 동일하게 Bearer CRON_SECRET)
+function cronAuth(req, res, next) {
+  const secret = process.env.CRON_SECRET
+  if (!secret || req.headers['authorization'] !== `Bearer ${secret}`) {
+    return res.status(401).json({ error: 'unauthorized' })
+  }
+  next()
+}
+
+// chatbot-check.yml 워크플로우를 GitHub Actions에 디스패치. inputs 비우면 전체 봇 체크.
+function dispatchWorkflow(inputs) {
+  const repo = process.env.GITHUB_REPO ?? 'qtw9723/mailer'
+  return fetch(`https://api.github.com/repos/${repo}/actions/workflows/chatbot-check.yml/dispatches`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'cs-smarthub',
+    },
+    body: JSON.stringify({ ref: 'main', inputs }),
+  })
+}
+
 // GET /api/chatbot/bots — 봇 목록 + 최근 체크 10건(오래된순) 병합
 router.get('/bots', auth, async (_req, res) => {
   try {
@@ -99,21 +123,30 @@ router.post('/run-check', auth, async (req, res) => {
   if (!process.env.GITHUB_TOKEN) {
     return res.status(503).json({ error: 'GITHUB_TOKEN이 설정되지 않았습니다. Fine-grained 토큰(Actions: write)을 환경변수에 추가하세요.' })
   }
-  const repo = process.env.GITHUB_REPO ?? 'qtw9723/mailer'
   const { bot_id, category } = req.body ?? {}
   // bot_id(단건) 우선, 없으면 category(그룹). 둘 다 없으면 전체.
   const inputs = bot_id ? { bot_id } : category ? { category } : {}
   try {
-    const ghRes = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/chatbot-check.yml/dispatches`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-        Accept: 'application/vnd.github+json',
-        'Content-Type': 'application/json',
-        'User-Agent': 'cs-smarthub',
-      },
-      body: JSON.stringify({ ref: 'main', inputs }),
-    })
+    const ghRes = await dispatchWorkflow(inputs)
+    if (!ghRes.ok) {
+      const text = await ghRes.text()
+      return res.status(502).json({ error: `GitHub dispatch 실패 (${ghRes.status}): ${text.slice(0, 200)}` })
+    }
+    res.status(202).json({ triggered: true })
+  } catch (e) {
+    res.status(502).json({ error: e.message })
+  }
+})
+
+// GET /api/chatbot/dispatch — Supabase pg_cron이 매일 08:30 KST에 호출(정시 트리거).
+// GitHub on:schedule은 best-effort라 ~2h 지연되므로, 트리거만 pg_cron으로 정시에 하고
+// 실행(Playwright 브라우저 체크)은 Actions 러너에서 수행한다. 전체 봇 체크.
+router.get('/dispatch', cronAuth, async (_req, res) => {
+  if (!process.env.GITHUB_TOKEN) {
+    return res.status(503).json({ error: 'GITHUB_TOKEN이 설정되지 않았습니다.' })
+  }
+  try {
+    const ghRes = await dispatchWorkflow({})
     if (!ghRes.ok) {
       const text = await ghRes.text()
       return res.status(502).json({ error: `GitHub dispatch 실패 (${ghRes.status}): ${text.slice(0, 200)}` })
