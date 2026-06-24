@@ -100,8 +100,19 @@ function fmtKoreanKst(ts) {
   }
 }
 
+// LLM 점검 요약(markdown 불릿)을 메일용 HTML 블록으로. 비어 있으면 빈 문자열.
+export function buildSummaryBlock(summary, esc) {
+  const text = String(summary ?? '').trim()
+  if (!text) return ''
+  const lines = text.split('\n').map((l) => l.replace(/^\s*[-*]\s*/, '').trim()).filter(Boolean)
+  const items = lines.map((l) => `<li style="margin:4px 0">${esc(l)}</li>`).join('')
+  return `<div style="background:#eef4ff;border-left:4px solid #2196F3;padding:12px 16px;border-radius:6px;margin-bottom:20px">
+<div style="font-weight:bold;color:#1565c0;margin-bottom:6px">🤖 AI 점검 요약</div>
+<ul style="margin:0;padding-left:20px;color:#333;font-size:14px">${items}</ul></div>`
+}
+
 // 이메일용 HTML (라이트 테마, 메일 클라이언트 호환 — 전부 인라인 스타일)
-export function buildEmailHtml(report) {
+export function buildEmailHtml(report, summary = '') {
   const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
   const LOG_SHOW = 5
   const MSG_PREVIEW = 150
@@ -150,6 +161,7 @@ export function buildEmailHtml(report) {
 <h1 style="color:#333;margin:0 0 10px;font-size:24px">📊 그라파나 모니터링 보고서</h1>
 <div style="color:#666;font-size:14px;margin-bottom:20px">${esc(fmtKoreanKst(report.generatedAt))} (KST)</div>
 <div style="padding:15px;border-radius:6px;margin-bottom:20px;font-size:16px;font-weight:bold;${summaryStyle}">${summaryText}</div>
+${buildSummaryBlock(summary, esc)}
 <div style="font-size:18px;font-weight:bold;color:#333;margin-bottom:20px;padding-bottom:10px;border-bottom:2px solid #2196F3">📊 지난 24시간 모니터링 현황</div>
 <div style="${sectionTitle}">📈 리소스 사용량</div>
 <table style="width:100%;border-collapse:collapse;margin-bottom:25px"><tr><th style="${th}">항목</th><th style="${thR}">값</th><th style="${thR}">임계</th></tr>${metricRows}</table>

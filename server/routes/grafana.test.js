@@ -10,11 +10,17 @@ vi.mock('../grafana/settings.js', () => ({
   saveSettings: vi.fn(),
   markSent: vi.fn(),
 }))
+vi.mock('../grafana/analyze.js', () => ({ analyzeLogs: vi.fn() }))
+vi.mock('../grafana/logTypes.js', () => ({
+  listTypes: vi.fn(), getType: vi.fn(), updateType: vi.fn(), deleteType: vi.fn(), resolveAndPersist: vi.fn(),
+}))
 
 import { gatherReportData, queryPrometheus, queryElasticsearch } from '../grafana/client.js'
 import { LOG_HOURS, LOG_FETCH, LOG_INDEX_LAG_HOURS } from '../grafana/config.js'
 import { sendReportEmail } from '../grafana/email.js'
 import { getSettings, saveSettings, markSent } from '../grafana/settings.js'
+import { analyzeLogs } from '../grafana/analyze.js'
+import { listTypes, getType, updateType, deleteType, resolveAndPersist } from '../grafana/logTypes.js'
 const { default: grafanaRouter } = await import('./grafana.js')
 
 const app = express()
@@ -31,6 +37,9 @@ beforeEach(() => {
   process.env.APP_PASSWORD = 'test-pw'
   process.env.CRON_SECRET = 'cron-secret'
   process.env.GRAFANA_EMAIL_TO = 'fallback@example.com'
+  // LLM/유형 기본 목: 분석 없음, 유형 없음 (개별 테스트에서 덮어씀)
+  analyzeLogs.mockResolvedValue({ summary: '', types: [] })
+  listTypes.mockResolvedValue([])
 })
 
 describe('GET /api/grafana/report', () => {
@@ -209,6 +218,101 @@ describe('GET /api/grafana/tick', () => {
       const res = await request(app).get('/api/grafana/tick').set('Authorization', 'Bearer cron-secret')
       expect(res.body).toEqual({ sent: false, reason: 'no-recipients' })
       expect(sendReportEmail).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('GET /api/grafana/report (analysis 포함)', () => {
+  it('저장된 last_analysis를 함께 반환', async () => {
+    getSettings.mockResolvedValueOnce({ log_lag_hours: 3, last_analysis: { summary: 's', generated_at: 'g' } })
+    gatherReportData.mockResolvedValueOnce(SAMPLE)
+    const res = await request(app).get('/api/grafana/report').set('x-app-password', 'test-pw')
+    expect(res.body.analysis).toEqual({ summary: 's', generated_at: 'g' })
+  })
+})
+
+describe('POST /api/grafana/analyze (미리보기)', () => {
+  it('인증 없으면 401', async () => {
+    expect((await request(app).post('/api/grafana/analyze')).status).toBe(401)
+  })
+  it('현재 로그로 분석 결과 반환(저장 안 함)', async () => {
+    getSettings.mockResolvedValueOnce({ log_lag_hours: 2 })
+    gatherReportData.mockResolvedValueOnce(SAMPLE)
+    analyzeLogs.mockResolvedValueOnce({ summary: '점검', types: [{ label: 'L', app: 'soe', count: 2, logs: [] }] })
+    const res = await request(app).post('/api/grafana/analyze').set('x-app-password', 'test-pw')
+    expect(res.status).toBe(200)
+    expect(res.body.summary).toBe('점검')
+    expect(resolveAndPersist).not.toHaveBeenCalled() // 미리보기는 저장 안 함
+  })
+  it('GEMINI 키 없으면 503', async () => {
+    getSettings.mockResolvedValueOnce({})
+    gatherReportData.mockResolvedValueOnce(SAMPLE)
+    analyzeLogs.mockRejectedValueOnce(new Error('GEMINI_API_KEY 미설정'))
+    const res = await request(app).post('/api/grafana/analyze').set('x-app-password', 'test-pw')
+    expect(res.status).toBe(503)
+  })
+})
+
+describe('log-types CRUD', () => {
+  it('GET 목록', async () => {
+    listTypes.mockResolvedValueOnce([{ id: 't1', label: 'A', total_count: 5 }])
+    const res = await request(app).get('/api/grafana/log-types').set('x-app-password', 'test-pw')
+    expect(res.body).toEqual([{ id: 't1', label: 'A', total_count: 5 }])
+  })
+  it('GET 상세 없으면 404', async () => {
+    getType.mockResolvedValueOnce(null)
+    expect((await request(app).get('/api/grafana/log-types/x').set('x-app-password', 'test-pw')).status).toBe(404)
+  })
+  it('PATCH note 갱신', async () => {
+    updateType.mockResolvedValueOnce({ id: 't1', note: 'hi' })
+    const res = await request(app).patch('/api/grafana/log-types/t1').set('x-app-password', 'test-pw').send({ note: 'hi' })
+    expect(res.status).toBe(200)
+    expect(updateType).toHaveBeenCalledWith('t1', { note: 'hi' })
+  })
+  it('PATCH 유효 필드 없으면 400', async () => {
+    const res = await request(app).patch('/api/grafana/log-types/t1').set('x-app-password', 'test-pw').send({ bogus: 1 })
+    expect(res.status).toBe(400)
+  })
+  it('DELETE 성공', async () => {
+    deleteType.mockResolvedValueOnce()
+    const res = await request(app).delete('/api/grafana/log-types/t1').set('x-app-password', 'test-pw')
+    expect(res.status).toBe(200)
+    expect(deleteType).toHaveBeenCalledWith('t1')
+  })
+})
+
+describe('GET /api/grafana/tick (분석 저장)', () => {
+  it('분석 결과 있으면 persist + last_analysis 저장 + 메일에 요약 포함', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-06-05T00:00:00Z'))
+    try {
+      getSettings.mockResolvedValueOnce({ recipients: ['a@x.com'], send_hour: 9, enabled: true, last_sent_date: '2000-01-01', metrics: [], log_queries: [] })
+      gatherReportData.mockResolvedValueOnce(SAMPLE)
+      analyzeLogs.mockResolvedValueOnce({ summary: '점검 요약', types: [{ label: 'L', app: 'soe', count: 3, logs: [] }] })
+      sendReportEmail.mockResolvedValueOnce()
+      const res = await request(app).get('/api/grafana/tick').set('Authorization', 'Bearer cron-secret')
+      expect(res.body.sent).toBe(true)
+      expect(resolveAndPersist).toHaveBeenCalledOnce()
+      expect(saveSettings).toHaveBeenCalledWith({ last_analysis: { summary: '점검 요약', generated_at: '2026-06-05T00:00:00.000Z' } })
+      expect(sendReportEmail.mock.calls[0][0]).toContain('점검 요약')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+  it('분석 실패해도 메일은 발송(best-effort)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-06-05T00:00:00Z'))
+    try {
+      getSettings.mockResolvedValueOnce({ recipients: ['a@x.com'], send_hour: 9, enabled: true, last_sent_date: '2000-01-01', metrics: [], log_queries: [] })
+      gatherReportData.mockResolvedValueOnce(SAMPLE)
+      analyzeLogs.mockRejectedValueOnce(new Error('gemini down'))
+      sendReportEmail.mockResolvedValueOnce()
+      const res = await request(app).get('/api/grafana/tick').set('Authorization', 'Bearer cron-secret')
+      expect(res.body.sent).toBe(true)
+      expect(sendReportEmail).toHaveBeenCalledOnce()
+      expect(markSent).toHaveBeenCalledOnce()
     } finally {
       vi.useRealTimers()
     }
