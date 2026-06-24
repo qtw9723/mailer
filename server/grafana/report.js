@@ -101,10 +101,18 @@ function fmtKoreanKst(ts) {
 }
 
 // LLM 점검 요약(markdown 불릿)을 메일용 HTML 블록으로. 비어 있으면 빈 문자열.
+// 불릿 텍스트 → 항목 배열. 줄바꿈 우선, 한 줄이면 " - "/" • " 구분자로도 분해.
+export function summaryToBullets(summary) {
+  const s = String(summary ?? '').trim()
+  if (!s) return []
+  let parts = s.split('\n')
+  if (parts.length === 1) parts = s.split(/\s+[-*•]\s+/)
+  return parts.map((l) => l.replace(/^\s*[-*•]\s*/, '').trim()).filter(Boolean)
+}
+
 export function buildSummaryBlock(summary, esc) {
-  const text = String(summary ?? '').trim()
-  if (!text) return ''
-  const lines = text.split('\n').map((l) => l.replace(/^\s*[-*]\s*/, '').trim()).filter(Boolean)
+  const lines = summaryToBullets(summary)
+  if (!lines.length) return ''
   const items = lines.map((l) => `<li style="margin:4px 0">${esc(l)}</li>`).join('')
   return `<div style="background:#eef4ff;border-left:4px solid #2196F3;padding:12px 16px;border-radius:6px;margin-bottom:20px">
 <div style="font-weight:bold;color:#1565c0;margin-bottom:6px">🤖 AI 점검 요약</div>

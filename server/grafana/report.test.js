@@ -2,6 +2,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   extractPromValue, normalizeEsIndex, fmtTimeKst, parseEsResponses, buildReport, buildEmailHtml, esLogRange,
+  summaryToBullets,
 } from './report.js'
 
 describe('extractPromValue', () => {
@@ -155,6 +156,23 @@ describe('buildEmailHtml', () => {
   })
   it('summary 비면 요약 블록 없음', () => {
     expect(buildEmailHtml(baseReport(), '')).not.toContain('AI 점검 요약')
+  })
+})
+
+describe('summaryToBullets', () => {
+  it('줄바꿈으로 구분된 불릿을 항목 배열로', () => {
+    expect(summaryToBullets('- 점검A\n- 점검B\n* 점검C')).toEqual(['점검A', '점검B', '점검C'])
+  })
+  it('한 줄로 뭉친 응답은 " - "/" • " 구분자로 분해', () => {
+    expect(summaryToBullets('- 점검A - 점검B • 점검C')).toEqual(['점검A', '점검B', '점검C'])
+  })
+  it('불릿 마커 없는 한 줄은 단일 항목', () => {
+    expect(summaryToBullets('단일 점검 항목')).toEqual(['단일 점검 항목'])
+  })
+  it('빈 값/공백은 빈 배열', () => {
+    expect(summaryToBullets('')).toEqual([])
+    expect(summaryToBullets(null)).toEqual([])
+    expect(summaryToBullets('   ')).toEqual([])
   })
 })
 
