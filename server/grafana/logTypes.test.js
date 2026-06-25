@@ -19,7 +19,7 @@ function mockQuery(result) {
   }
 }
 
-const { listTypes, getType, updateType, deleteType, resolveAndPersist } = await import('./logTypes.js')
+const { listTypes, getType, updateType, deleteType, updateRun, resolveAndPersist } = await import('./logTypes.js')
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -59,6 +59,21 @@ describe('updateType', () => {
   it('없으면 null', async () => {
     mockFrom.mockReturnValueOnce(mockQuery({ data: [], error: null }))
     expect(await updateType('x', { note: 'a' })).toBeNull()
+  })
+})
+
+describe('updateRun', () => {
+  it('회차 메모 저장', async () => {
+    const q = mockQuery({ data: [{ id: 5, note: '확인함' }], error: null })
+    mockFrom.mockReturnValueOnce(q)
+    const r = await updateRun(5, '확인함')
+    expect(q.update).toHaveBeenCalledWith({ note: '확인함' })
+    expect(q.eq).toHaveBeenCalledWith('id', 5)
+    expect(r.note).toBe('확인함')
+  })
+  it('없는 회차면 null', async () => {
+    mockFrom.mockReturnValueOnce(mockQuery({ data: [], error: null }))
+    expect(await updateRun(999, 'x')).toBeNull()
   })
 })
 

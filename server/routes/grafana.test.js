@@ -12,7 +12,7 @@ vi.mock('../grafana/settings.js', () => ({
 }))
 vi.mock('../grafana/analyze.js', () => ({ analyzeLogs: vi.fn() }))
 vi.mock('../grafana/logTypes.js', () => ({
-  listTypes: vi.fn(), getType: vi.fn(), updateType: vi.fn(), deleteType: vi.fn(), resolveAndPersist: vi.fn(),
+  listTypes: vi.fn(), getType: vi.fn(), updateType: vi.fn(), deleteType: vi.fn(), updateRun: vi.fn(), resolveAndPersist: vi.fn(),
 }))
 
 import { gatherReportData, queryPrometheus, queryElasticsearch } from '../grafana/client.js'
@@ -20,7 +20,7 @@ import { LOG_HOURS, LOG_FETCH, LOG_INDEX_LAG_HOURS } from '../grafana/config.js'
 import { sendReportEmail } from '../grafana/email.js'
 import { getSettings, saveSettings, markSent } from '../grafana/settings.js'
 import { analyzeLogs } from '../grafana/analyze.js'
-import { listTypes, getType, updateType, deleteType, resolveAndPersist } from '../grafana/logTypes.js'
+import { listTypes, getType, updateType, deleteType, updateRun, resolveAndPersist } from '../grafana/logTypes.js'
 const { default: grafanaRouter } = await import('./grafana.js')
 
 const app = express()
@@ -280,6 +280,21 @@ describe('log-types CRUD', () => {
     const res = await request(app).delete('/api/grafana/log-types/t1').set('x-app-password', 'test-pw')
     expect(res.status).toBe(200)
     expect(deleteType).toHaveBeenCalledWith('t1')
+  })
+  it('PATCH 회차 메모 저장', async () => {
+    updateRun.mockResolvedValueOnce({ id: 5, note: '확인함' })
+    const res = await request(app).patch('/api/grafana/log-type-runs/5').set('x-app-password', 'test-pw').send({ note: '확인함' })
+    expect(res.status).toBe(200)
+    expect(updateRun).toHaveBeenCalledWith('5', '확인함')
+  })
+  it('PATCH 회차 note 없으면 400', async () => {
+    const res = await request(app).patch('/api/grafana/log-type-runs/5').set('x-app-password', 'test-pw').send({})
+    expect(res.status).toBe(400)
+  })
+  it('PATCH 없는 회차면 404', async () => {
+    updateRun.mockResolvedValueOnce(null)
+    const res = await request(app).patch('/api/grafana/log-type-runs/999').set('x-app-password', 'test-pw').send({ note: 'x' })
+    expect(res.status).toBe(404)
   })
 })
 

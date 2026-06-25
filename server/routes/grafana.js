@@ -6,7 +6,7 @@ import { sendReportEmail } from '../grafana/email.js'
 import { getSettings, saveSettings, markSent } from '../grafana/settings.js'
 import { shouldSend, kstDateString } from '../grafana/schedule.js'
 import { analyzeLogs } from '../grafana/analyze.js'
-import { listTypes, getType, updateType, deleteType, resolveAndPersist } from '../grafana/logTypes.js'
+import { listTypes, getType, updateType, deleteType, updateRun, resolveAndPersist } from '../grafana/logTypes.js'
 import { LOG_INDEX_LAG_HOURS, LOG_HOURS, LOG_FETCH, DEFAULT_METRICS, DEFAULT_LOG_QUERIES } from '../grafana/config.js'
 
 const router = Router()
@@ -116,6 +116,19 @@ router.patch('/log-types/:id', auth, async (req, res) => {
     const t = await updateType(req.params.id, fields)
     if (!t) return res.status(404).json({ error: 'not found' })
     res.json(t)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// PATCH /api/grafana/log-type-runs/:runId — 회차별 메모 수정
+router.patch('/log-type-runs/:runId', auth, async (req, res) => {
+  if (req.body.note === undefined) return res.status(400).json({ error: 'no note' })
+  const note = req.body.note == null ? null : String(req.body.note)
+  try {
+    const r = await updateRun(req.params.runId, note)
+    if (!r) return res.status(404).json({ error: 'not found' })
+    res.json(r)
   } catch (e) {
     res.status(500).json({ error: e.message })
   }
