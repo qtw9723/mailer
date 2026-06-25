@@ -22,12 +22,16 @@ export const RESPONSE_SCHEMA = {
           existingMatch: { type: SchemaType.STRING, description: '기존 유형 목록 중 동일하면 그 label, 아니면 빈 문자열' },
           logs: {
             type: SchemaType.ARRAY,
-            description: '중복을 정리한 대표 로그 (최대 5개)',
+            description: '메시지 기준으로 중복을 정리한 대표 로그 (최대 5개). 단 발생 시각은 묶지 말고 모두 보존.',
             items: {
               type: SchemaType.OBJECT,
               properties: {
-                time: { type: SchemaType.STRING },
                 msg: { type: SchemaType.STRING },
+                times: {
+                  type: SchemaType.ARRAY,
+                  description: '이 메시지가 발생한 모든 시각(원시 로그의 time)을 빠짐없이 나열. 같은 메시지가 3번이면 시각 3개.',
+                  items: { type: SchemaType.STRING },
+                },
               },
               required: ['msg'],
             },
@@ -69,7 +73,8 @@ ${logBlocks}
 
 요구사항:
 - summary: 운영자가 오늘 점검할 포인트를 한국어 불릿 3~6개로 간단히(심각도 높은 것 우선). 각 불릿은 "- "로 시작하고 항목마다 줄바꿈(\\n)으로 구분.
-- types: 로그를 유형별로 묶어 각 유형마다 label/description/app/count/logs(중복 정리 대표 로그 최대 5개) 작성.
+- types: 로그를 유형별로 묶어 각 유형마다 label/description/app/count/logs 작성.
+- logs: 메시지가 같은 로그는 한 항목으로 묶되(최대 5개), 그 메시지가 발생한 모든 시각을 times 배열에 빠짐없이 보존. 같은 메시지가 3번 나오면 times에 시각 3개.
 - 추측성 과장 금지. 실제 로그에 근거할 것.`
 }
 
@@ -84,12 +89,21 @@ export function parseAnalysis(text) {
   return { summary, types }
 }
 
+// 대표 로그 한 건 정규화. times[]는 모든 발생 시각을 보존, time은 하위호환용 대표 시각(첫 시각).
+function normalizeLog(r) {
+  const msg = String(r?.msg ?? '')
+  const times = Array.isArray(r?.times)
+    ? r.times.map((x) => String(x ?? '')).filter(Boolean)
+    : (r?.time ? [String(r.time)] : [])
+  return { msg, times, time: times[0] ?? '' }
+}
+
 function normalizeType(t) {
   if (!t || typeof t !== 'object') return null
   const label = String(t.label ?? '').trim()
   if (!label) return null
   const logs = Array.isArray(t.logs)
-    ? t.logs.map((r) => ({ time: String(r?.time ?? ''), msg: String(r?.msg ?? '') })).filter((r) => r.msg).slice(0, 5)
+    ? t.logs.map(normalizeLog).filter((r) => r.msg).slice(0, 5)
     : []
   const count = Number.isFinite(t.count) ? Math.max(0, Math.trunc(t.count)) : logs.length
   return {

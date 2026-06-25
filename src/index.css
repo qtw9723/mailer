@@ -1082,6 +1082,8 @@ body {
 .logtype-tl-time { color: var(--color-text-secondary); font-size: 11px; white-space: nowrap; width: 130px; }
 .logtype-tl-app { width: 92px; }
 .logtype-tl-msg { color: var(--color-text-primary); word-break: break-word; }
+.logtype-tl-more td { color: var(--color-text-faint); font-style: italic; border-left: none; }
+.logtype-tl-more { border-left: 3px solid transparent; }
 
 /* ── 챗봇 모니터링 ── */
 .scenario-steps { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }

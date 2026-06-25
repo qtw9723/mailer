@@ -52,6 +52,18 @@ describe('parseAnalysis', () => {
     const text = JSON.stringify({ summary: '', types: [{ label: 'x', app: 'a', count: 8, logs: [...many, { msg: '' }] }] })
     expect(parseAnalysis(text).types[0].logs).toHaveLength(5)
   })
+  it('logs.times[]는 모든 발생 시각 보존, time은 대표(첫) 시각', () => {
+    const text = JSON.stringify({ summary: '', types: [{ label: 'x', app: 'a', count: 3, logs: [{ msg: 'm', times: ['t1', 't2', 't3'] }] }] })
+    const log = parseAnalysis(text).types[0].logs[0]
+    expect(log.times).toEqual(['t1', 't2', 't3'])
+    expect(log.time).toBe('t1')
+  })
+  it('구버전 단일 time도 times[]로 승격(하위호환)', () => {
+    const text = JSON.stringify({ summary: '', types: [{ label: 'x', app: 'a', count: 1, logs: [{ msg: 'm', time: 't1' }] }] })
+    const log = parseAnalysis(text).types[0].logs[0]
+    expect(log.times).toEqual(['t1'])
+    expect(log.time).toBe('t1')
+  })
 })
 
 describe('analyzeLogs', () => {

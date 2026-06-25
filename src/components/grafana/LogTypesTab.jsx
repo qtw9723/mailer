@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Fragment } from 'react'
 import { Trash2, ChevronLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { getLogTypes, getLogType, updateLogType, deleteLogType } from '../../lib/api/grafana.js'
@@ -30,23 +30,46 @@ function RunRow({ run }) {
   )
 }
 
-// 모든 회차의 대표 로그를 하나의 시간순 타임라인으로 펼친다(회차는 run_at desc로 정렬돼 옴).
+// 회차의 대표 로그를 발생 시각(times[]) 단위로 펼친다. 같은 메시지가 3번이면 3행.
+// 회차의 count보다 기록된 시각이 적으면(구버전·원시로그 상한) "외 N건"으로 표기.
+// 회차는 run_at desc로 정렬돼 오므로 전체가 최신→과거 순.
+function buildRunRows(run) {
+  return (run.logs ?? []).flatMap((l, li) => {
+    const times = l.times?.length ? l.times : (l.time ? [l.time] : [''])
+    return times.map((t, ti) => ({ key: `${run.id}-${li}-${ti}`, time: t, msg: l.msg }))
+  })
+}
+
 function Timeline({ runs }) {
-  const items = (runs ?? []).flatMap((run) =>
-    (run.logs ?? []).map((l, i) => ({
-      key: `${run.id}-${i}`, time: l.time, msg: l.msg, app: run.app, runAt: run.run_at,
-    })),
-  )
-  if (items.length === 0) return <p className="job-empty">표시할 로그가 없습니다.</p>
+  const blocks = (runs ?? [])
+    .map((run) => {
+      const rows = buildRunRows(run)
+      const recorded = rows.filter((r) => r.time).length
+      return { run, rows, missing: Math.max(0, (run.count ?? 0) - recorded) }
+    })
+    .filter((b) => b.rows.length || b.missing)
+
+  if (blocks.length === 0) return <p className="job-empty">표시할 로그가 없습니다.</p>
   return (
     <table className="logtype-timeline">
       <tbody>
-        {items.map((it) => (
-          <tr key={it.key}>
-            <td className="logtype-tl-time mono" title={`회차 ${fmtKst(it.runAt)}`}>{it.time || fmtKst(it.runAt)}</td>
-            <td className="logtype-tl-app">{it.app && <span className="cat-badge">{it.app}</span>}</td>
-            <td className="logtype-tl-msg">{it.msg}</td>
-          </tr>
+        {blocks.map((b) => (
+          <Fragment key={b.run.id}>
+            {b.rows.map((r) => (
+              <tr key={r.key}>
+                <td className="logtype-tl-time mono" title={`회차 ${fmtKst(b.run.run_at)}`}>{r.time || fmtKst(b.run.run_at)}</td>
+                <td className="logtype-tl-app">{b.run.app && <span className="cat-badge">{b.run.app}</span>}</td>
+                <td className="logtype-tl-msg">{r.msg}</td>
+              </tr>
+            ))}
+            {b.missing > 0 && (
+              <tr className="logtype-tl-more">
+                <td className="logtype-tl-time mono">{fmtKst(b.run.run_at)}</td>
+                <td className="logtype-tl-app" />
+                <td className="logtype-tl-msg">… 외 {b.missing}건 (시각 미기록)</td>
+              </tr>
+            )}
+          </Fragment>
         ))}
       </tbody>
     </table>
