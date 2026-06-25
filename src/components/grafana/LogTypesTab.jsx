@@ -3,24 +3,32 @@ import { Trash2, ChevronLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { getLogTypes, getLogType, updateLogType, deleteLogType } from '../../lib/api/grafana.js'
 import { clearCookie } from '../../lib/auth.js'
-import { fmtKst } from '../../lib/datetime.js'
+import { fmtKst, kstDateKey } from '../../lib/datetime.js'
 import ConfirmDialog from '../shared/ConfirmDialog.jsx'
 
 // 발생 타임라인: 개별 로그(entries)를 occurred_at desc로 그대로 나열. 같은 에러 3건이면 3행.
+// 오늘(KST) 수집된 로그(created_at 기준)는 하이라이트해 한눈에 구분.
 function Timeline({ entries }) {
   if (!entries?.length) {
     return <p className="job-empty">개별 발생 기록이 없습니다. (다음 분석 회차부터 시각이 쌓입니다)</p>
   }
+  const todayKey = kstDateKey(new Date().toISOString())
   return (
     <table className="logtype-timeline">
       <tbody>
-        {entries.map((e) => (
-          <tr key={e.id}>
-            <td className="logtype-tl-time mono">{e.occurred_at ? fmtKst(e.occurred_at) : '-'}</td>
-            <td className="logtype-tl-app">{e.app && <span className="cat-badge">{e.app}</span>}</td>
-            <td className="logtype-tl-msg">{e.msg}</td>
-          </tr>
-        ))}
+        {entries.map((e) => {
+          const today = kstDateKey(e.created_at) === todayKey
+          return (
+            <tr key={e.id} className={today ? 'logtype-tl-today' : undefined}>
+              <td className="logtype-tl-time mono">
+                {e.occurred_at ? fmtKst(e.occurred_at) : '-'}
+                {today && <span className="logtype-today-badge">오늘 수집</span>}
+              </td>
+              <td className="logtype-tl-app">{e.app && <span className="cat-badge">{e.app}</span>}</td>
+              <td className="logtype-tl-msg">{e.msg}</td>
+            </tr>
+          )
+        })}
       </tbody>
     </table>
   )
