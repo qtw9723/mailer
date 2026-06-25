@@ -1049,6 +1049,10 @@ body {
   transition: border-color 150ms;
 }
 .logtype-row:hover { border-color: var(--color-border-strong); }
+/* 이번 회차에 로그가 추가된 유형 강조 */
+.logtype-row-fresh { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 6%, var(--color-bg-surface)); }
+.logtype-row-label { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.logtype-row-label strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .logtype-row-main { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--color-text-primary); }
 .logtype-row-count { font-size: 12px; color: var(--color-text-secondary); }
 .logtype-row-sub { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; font-size: 12px; color: var(--color-text-secondary); }
