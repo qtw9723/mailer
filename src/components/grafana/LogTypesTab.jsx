@@ -7,17 +7,18 @@ import { fmtKst, kstDateKey } from '../../lib/datetime.js'
 import ConfirmDialog from '../shared/ConfirmDialog.jsx'
 
 // 발생 타임라인: 개별 로그(entries)를 occurred_at desc로 그대로 나열. 같은 에러 3건이면 3행.
-// 오늘(KST) 수집된 로그(created_at 기준)는 하이라이트해 한눈에 구분.
-function Timeline({ entries }) {
+// 오늘(KST) 수집한 회차(run_at 기준)에 속한 로그를 하이라이트해 한눈에 구분.
+function Timeline({ entries, runs }) {
   if (!entries?.length) {
     return <p className="job-empty">개별 발생 기록이 없습니다. (다음 분석 회차부터 시각이 쌓입니다)</p>
   }
   const todayKey = kstDateKey(new Date().toISOString())
+  const todayRunIds = new Set((runs ?? []).filter((r) => kstDateKey(r.run_at) === todayKey).map((r) => r.id))
   return (
     <table className="logtype-timeline">
       <tbody>
         {entries.map((e) => {
-          const today = kstDateKey(e.created_at) === todayKey
+          const today = todayRunIds.has(e.run_id)
           return (
             <tr key={e.id} className={today ? 'logtype-tl-today' : undefined}>
               <td className="logtype-tl-time mono">
@@ -136,7 +137,7 @@ function Detail({ id, password, onBack, onChanged }) {
       {(type.runs ?? []).length === 0
         ? <p className="job-empty">아직 기록이 없습니다.</p>
         : view === 'timeline'
-          ? <Timeline entries={type.entries} />
+          ? <Timeline entries={type.entries} runs={type.runs} />
           : type.runs.map((r) => <RunRow key={r.id} run={r} entries={type.entries} />)}
 
       {confirm && (
