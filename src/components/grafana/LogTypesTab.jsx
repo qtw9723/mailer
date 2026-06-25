@@ -30,12 +30,36 @@ function RunRow({ run }) {
   )
 }
 
+// 모든 회차의 대표 로그를 하나의 시간순 타임라인으로 펼친다(회차는 run_at desc로 정렬돼 옴).
+function Timeline({ runs }) {
+  const items = (runs ?? []).flatMap((run) =>
+    (run.logs ?? []).map((l, i) => ({
+      key: `${run.id}-${i}`, time: l.time, msg: l.msg, app: run.app, runAt: run.run_at,
+    })),
+  )
+  if (items.length === 0) return <p className="job-empty">표시할 로그가 없습니다.</p>
+  return (
+    <table className="logtype-timeline">
+      <tbody>
+        {items.map((it) => (
+          <tr key={it.key}>
+            <td className="logtype-tl-time mono" title={`회차 ${fmtKst(it.runAt)}`}>{it.time || fmtKst(it.runAt)}</td>
+            <td className="logtype-tl-app">{it.app && <span className="cat-badge">{it.app}</span>}</td>
+            <td className="logtype-tl-msg">{it.msg}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
 function Detail({ id, password, onBack, onChanged }) {
   const [type, setType] = useState(null)
   const [note, setNote] = useState('')
   const [label, setLabel] = useState('')
   const [saving, setSaving] = useState(false)
   const [confirm, setConfirm] = useState(false)
+  const [view, setView] = useState('timeline')
 
   const load = useCallback(async () => {
     try {
@@ -90,10 +114,15 @@ function Detail({ id, password, onBack, onChanged }) {
         <button className="modal-submit" onClick={save} disabled={saving}>{saving ? '저장 중…' : '저장'}</button>
       </div>
 
-      <h4 className="logtype-runs-title">회차별 로그</h4>
+      <div className="logtype-view-toggle">
+        <button className={`cat-chip${view === 'timeline' ? ' active' : ''}`} onClick={() => setView('timeline')}>발생 타임라인</button>
+        <button className={`cat-chip${view === 'runs' ? ' active' : ''}`} onClick={() => setView('runs')}>회차별</button>
+      </div>
       {(type.runs ?? []).length === 0
         ? <p className="job-empty">아직 기록이 없습니다.</p>
-        : type.runs.map((r) => <RunRow key={r.id} run={r} />)}
+        : view === 'timeline'
+          ? <Timeline runs={type.runs} />
+          : type.runs.map((r) => <RunRow key={r.id} run={r} />)}
 
       {confirm && (
         <ConfirmDialog
