@@ -1075,6 +1075,13 @@ body {
 .logtype-run-head:hover { background: var(--color-bg-hover); }
 .logtype-run-count { color: var(--color-text-secondary); font-size: 12px; }
 .logtype-run-toggle { margin-left: auto; color: var(--color-accent); font-size: 12px; }
+.logtype-view-toggle { display: flex; gap: 6px; margin: 22px 0 10px; }
+.logtype-timeline { width: 100%; border-collapse: collapse; }
+.logtype-timeline td { padding: 7px 10px; border-bottom: 1px solid var(--color-border-subtle); vertical-align: top; font-size: 13px; }
+.logtype-timeline tr { border-left: 3px solid var(--color-status-error); }
+.logtype-tl-time { color: var(--color-text-secondary); font-size: 11px; white-space: nowrap; width: 130px; }
+.logtype-tl-app { width: 92px; }
+.logtype-tl-msg { color: var(--color-text-primary); word-break: break-word; }
 
 /* ── 챗봇 모니터링 ── */
 .scenario-steps { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
