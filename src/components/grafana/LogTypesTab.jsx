@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Trash2, ChevronLeft } from 'lucide-react'
 import { toast } from 'sonner'
-import { getLogTypes, getLogType, updateLogType, deleteLogType } from '../../lib/api/grafana.js'
+import { getLogTypes, getLogType, updateLogType, deleteLogType, updateLogTypeRun } from '../../lib/api/grafana.js'
 import { clearCookie } from '../../lib/auth.js'
 import { fmtKst, kstDateKey } from '../../lib/datetime.js'
 import ConfirmDialog from '../shared/ConfirmDialog.jsx'
@@ -35,35 +35,64 @@ function Timeline({ entries, runs }) {
   )
 }
 
-// 회차별: 회차(run) 헤더 + 펼치면 그 회차의 개별 로그. 신규는 entries(run_id), 옛 데이터는 logs jsonb 폴백.
+// 회차별: 회차(run) 헤더 + 펼치면 그 회차의 개별 로그 + 회차 메모. 신규는 entries(run_id), 옛 데이터는 logs jsonb 폴백.
 // count보다 적게 기록됐으면(>50 상한 등) "외 N건" 표기.
-function RunRow({ run, entries }) {
+function RunRow({ run, entries, password, onSaved }) {
   const [open, setOpen] = useState(false)
+  const [note, setNote] = useState(run.note ?? '')
+  const [saving, setSaving] = useState(false)
   const mine = (entries ?? []).filter((e) => e.run_id === run.id)
   const legacy = mine.length === 0 ? (run.logs ?? []) : []
   const rows = mine.length
     ? mine.map((e) => ({ key: e.id, time: e.occurred_at ? fmtKst(e.occurred_at) : '-', msg: e.msg }))
     : legacy.map((l, i) => ({ key: `l${i}`, time: l.time, msg: l.msg }))
   const missing = Math.max(0, (run.count ?? 0) - rows.length)
+
+  const saveNote = async () => {
+    setSaving(true)
+    try {
+      await updateLogTypeRun(run.id, note.trim() || null, password)
+      toast.success('회차 메모를 저장했습니다')
+      onSaved?.()
+    } catch (e) {
+      if (e.message === 'UNAUTHORIZED') clearCookie()
+      else toast.error('회차 메모 저장에 실패했습니다')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="logtype-run">
       <button className="logtype-run-head" onClick={() => setOpen((o) => !o)}>
         <span className="mono">{fmtKst(run.run_at)}</span>
         {run.app && <span className="cat-badge">{run.app}</span>}
+        {run.note && <span className="logtype-run-note-dot" title={run.note}>📝</span>}
         <span className="logtype-run-count mono">{run.count}건</span>
         <span className="logtype-run-toggle">{open ? '접기' : `로그 ${rows.length}`}</span>
       </button>
       {open && (
-        <table className="grafana-log-table">
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.key}><td className="grafana-log-time mono">{r.time}</td><td className="grafana-log-msg">{r.msg}</td></tr>
-            ))}
-            {missing > 0 && (
-              <tr className="logtype-tl-more"><td className="grafana-log-time mono">-</td><td className="grafana-log-msg">… 외 {missing}건 (미수집)</td></tr>
-            )}
-          </tbody>
-        </table>
+        <div className="logtype-run-body">
+          <table className="grafana-log-table">
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.key}><td className="grafana-log-time mono">{r.time}</td><td className="grafana-log-msg">{r.msg}</td></tr>
+              ))}
+              {missing > 0 && (
+                <tr className="logtype-tl-more"><td className="grafana-log-time mono">-</td><td className="grafana-log-msg">… 외 {missing}건 (미수집)</td></tr>
+              )}
+            </tbody>
+          </table>
+          <div className="logtype-run-note">
+            <textarea
+              className="form-textarea" rows={2} value={note}
+              onChange={(e) => setNote(e.target.value)} placeholder="이 회차에 대한 메모…"
+            />
+            <button className="modal-submit" onClick={saveNote} disabled={saving || note === (run.note ?? '')}>
+              {saving ? '저장 중…' : '메모 저장'}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -75,7 +104,7 @@ function Detail({ id, password, onBack, onChanged }) {
   const [label, setLabel] = useState('')
   const [saving, setSaving] = useState(false)
   const [confirm, setConfirm] = useState(false)
-  const [view, setView] = useState('timeline')
+  const [view, setView] = useState('runs')
 
   const load = useCallback(async () => {
     try {
@@ -131,14 +160,14 @@ function Detail({ id, password, onBack, onChanged }) {
       </div>
 
       <div className="logtype-view-toggle">
-        <button className={`cat-chip${view === 'timeline' ? ' active' : ''}`} onClick={() => setView('timeline')}>발생 타임라인</button>
         <button className={`cat-chip${view === 'runs' ? ' active' : ''}`} onClick={() => setView('runs')}>회차별</button>
+        <button className={`cat-chip${view === 'timeline' ? ' active' : ''}`} onClick={() => setView('timeline')}>발생 타임라인</button>
       </div>
       {(type.runs ?? []).length === 0
         ? <p className="job-empty">아직 기록이 없습니다.</p>
         : view === 'timeline'
           ? <Timeline entries={type.entries} runs={type.runs} />
-          : type.runs.map((r) => <RunRow key={r.id} run={r} entries={type.entries} />)}
+          : type.runs.map((r) => <RunRow key={r.id} run={r} entries={type.entries} password={password} onSaved={load} />)}
 
       {confirm && (
         <ConfirmDialog

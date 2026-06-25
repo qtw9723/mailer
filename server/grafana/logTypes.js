@@ -45,6 +45,14 @@ export async function deleteType(id) {
   if (error) throw error
 }
 
+// 회차별 메모 저장. note=null/'' 도 허용(메모 삭제).
+export async function updateRun(id, note) {
+  const { data, error } = await db.from(RUNS).update({ note }).eq('id', id).select('*')
+  if (error) throw error
+  if (!data?.length) return null
+  return data[0]
+}
+
 // 분석 결과의 types[]를 영속 유형에 반영(기존 매칭 or 신규 생성) + 회차 집계 적재 +
 // rows[] 인덱스를 ES 원본 행으로 되살려 개별 로그(entries) 적재 + 누적 갱신.
 // logs: gatherReportData가 준 원시 그룹(app/rows 포함). rows 인덱스 매핑 기준.
