@@ -31,38 +31,25 @@ describe('parseAnalysis', () => {
   it('정상 JSON 정규화', () => {
     const text = JSON.stringify({
       summary: '- 점검1',
-      types: [{ label: '타임아웃', description: 'd', app: 'soe', count: 4, existingMatch: '', logs: [{ time: 't', msg: 'm' }] }],
+      types: [{ label: '타임아웃', description: 'd', app: 'soe', count: 4, existingMatch: '', rows: [0, 2, 5] }],
     })
     const r = parseAnalysis(text)
     expect(r.summary).toBe('- 점검1')
     expect(r.types).toHaveLength(1)
-    expect(r.types[0]).toMatchObject({ label: '타임아웃', app: 'soe', count: 4 })
+    expect(r.types[0]).toMatchObject({ label: '타임아웃', app: 'soe', count: 4, rows: [0, 2, 5] })
   })
   it('깨진 JSON은 빈 결과', () => {
     expect(parseAnalysis('not json')).toEqual({ summary: '', types: [] })
   })
-  it('label 없는 유형은 제거, count 없으면 logs 길이로', () => {
-    const text = JSON.stringify({ summary: '', types: [{ label: '', app: 'a' }, { label: 'x', app: 'a', logs: [{ msg: '1' }, { msg: '2' }] }] })
+  it('label 없는 유형은 제거, count 없으면 rows 길이로', () => {
+    const text = JSON.stringify({ summary: '', types: [{ label: '', app: 'a' }, { label: 'x', app: 'a', rows: [1, 2] }] })
     const r = parseAnalysis(text)
     expect(r.types).toHaveLength(1)
     expect(r.types[0].count).toBe(2)
   })
-  it('logs는 최대 5개, msg 없는 행 제거', () => {
-    const many = Array.from({ length: 8 }, (_, i) => ({ msg: `m${i}` }))
-    const text = JSON.stringify({ summary: '', types: [{ label: 'x', app: 'a', count: 8, logs: [...many, { msg: '' }] }] })
-    expect(parseAnalysis(text).types[0].logs).toHaveLength(5)
-  })
-  it('logs.times[]는 모든 발생 시각 보존, time은 대표(첫) 시각', () => {
-    const text = JSON.stringify({ summary: '', types: [{ label: 'x', app: 'a', count: 3, logs: [{ msg: 'm', times: ['t1', 't2', 't3'] }] }] })
-    const log = parseAnalysis(text).types[0].logs[0]
-    expect(log.times).toEqual(['t1', 't2', 't3'])
-    expect(log.time).toBe('t1')
-  })
-  it('구버전 단일 time도 times[]로 승격(하위호환)', () => {
-    const text = JSON.stringify({ summary: '', types: [{ label: 'x', app: 'a', count: 1, logs: [{ msg: 'm', time: 't1' }] }] })
-    const log = parseAnalysis(text).types[0].logs[0]
-    expect(log.times).toEqual(['t1'])
-    expect(log.time).toBe('t1')
+  it('rows는 정수만·음수/중복 제거, 같은 메시지 여러 번이면 번호 모두 보존', () => {
+    const text = JSON.stringify({ summary: '', types: [{ label: 'x', app: 'a', count: 3, rows: [0, 0, 1, -1, 2.9, 'x', 3] }] })
+    expect(parseAnalysis(text).types[0].rows).toEqual([0, 1, 2, 3])
   })
 })
 

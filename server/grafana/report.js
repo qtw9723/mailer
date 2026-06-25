@@ -54,7 +54,8 @@ export function parseEsResponses(responses, queries, timefield) {
       const src = h._source || {}
       const ts = src[timefield] || ''
       const msg = src.message || src.log || src.msg || JSON.stringify(src)
-      return { time: fmtTimeKst(String(ts)), msg: String(msg) }
+      // time: KST 표시용, ts: ES 원본 ISO(개별 로그 occurred_at 저장용)
+      return { time: fmtTimeKst(String(ts)), ts: String(ts), msg: String(msg) }
     })
     out[queries[i].label] = { count, rows }
   }

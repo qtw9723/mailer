@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, Fragment } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Trash2, ChevronLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { getLogTypes, getLogType, updateLogType, deleteLogType } from '../../lib/api/grafana.js'
@@ -6,73 +6,57 @@ import { clearCookie } from '../../lib/auth.js'
 import { fmtKst } from '../../lib/datetime.js'
 import ConfirmDialog from '../shared/ConfirmDialog.jsx'
 
-function RunRow({ run }) {
+// 발생 타임라인: 개별 로그(entries)를 occurred_at desc로 그대로 나열. 같은 에러 3건이면 3행.
+function Timeline({ entries }) {
+  if (!entries?.length) {
+    return <p className="job-empty">개별 발생 기록이 없습니다. (다음 분석 회차부터 시각이 쌓입니다)</p>
+  }
+  return (
+    <table className="logtype-timeline">
+      <tbody>
+        {entries.map((e) => (
+          <tr key={e.id}>
+            <td className="logtype-tl-time mono">{e.occurred_at ? fmtKst(e.occurred_at) : '-'}</td>
+            <td className="logtype-tl-app">{e.app && <span className="cat-badge">{e.app}</span>}</td>
+            <td className="logtype-tl-msg">{e.msg}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+// 회차별: 회차(run) 헤더 + 펼치면 그 회차의 개별 로그. 신규는 entries(run_id), 옛 데이터는 logs jsonb 폴백.
+// count보다 적게 기록됐으면(>50 상한 등) "외 N건" 표기.
+function RunRow({ run, entries }) {
   const [open, setOpen] = useState(false)
-  const logs = run.logs ?? []
+  const mine = (entries ?? []).filter((e) => e.run_id === run.id)
+  const legacy = mine.length === 0 ? (run.logs ?? []) : []
+  const rows = mine.length
+    ? mine.map((e) => ({ key: e.id, time: e.occurred_at ? fmtKst(e.occurred_at) : '-', msg: e.msg }))
+    : legacy.map((l, i) => ({ key: `l${i}`, time: l.time, msg: l.msg }))
+  const missing = Math.max(0, (run.count ?? 0) - rows.length)
   return (
     <div className="logtype-run">
       <button className="logtype-run-head" onClick={() => setOpen((o) => !o)}>
         <span className="mono">{fmtKst(run.run_at)}</span>
         {run.app && <span className="cat-badge">{run.app}</span>}
         <span className="logtype-run-count mono">{run.count}건</span>
-        <span className="logtype-run-toggle">{open ? '접기' : `로그 ${logs.length}`}</span>
+        <span className="logtype-run-toggle">{open ? '접기' : `로그 ${rows.length}`}</span>
       </button>
-      {open && logs.length > 0 && (
+      {open && (
         <table className="grafana-log-table">
           <tbody>
-            {logs.map((r, i) => (
-              <tr key={i}><td className="grafana-log-time mono">{r.time}</td><td className="grafana-log-msg">{r.msg}</td></tr>
+            {rows.map((r) => (
+              <tr key={r.key}><td className="grafana-log-time mono">{r.time}</td><td className="grafana-log-msg">{r.msg}</td></tr>
             ))}
+            {missing > 0 && (
+              <tr className="logtype-tl-more"><td className="grafana-log-time mono">-</td><td className="grafana-log-msg">… 외 {missing}건 (미수집)</td></tr>
+            )}
           </tbody>
         </table>
       )}
     </div>
-  )
-}
-
-// 회차의 대표 로그를 발생 시각(times[]) 단위로 펼친다. 같은 메시지가 3번이면 3행.
-// 회차의 count보다 기록된 시각이 적으면(구버전·원시로그 상한) "외 N건"으로 표기.
-// 회차는 run_at desc로 정렬돼 오므로 전체가 최신→과거 순.
-function buildRunRows(run) {
-  return (run.logs ?? []).flatMap((l, li) => {
-    const times = l.times?.length ? l.times : (l.time ? [l.time] : [''])
-    return times.map((t, ti) => ({ key: `${run.id}-${li}-${ti}`, time: t, msg: l.msg }))
-  })
-}
-
-function Timeline({ runs }) {
-  const blocks = (runs ?? [])
-    .map((run) => {
-      const rows = buildRunRows(run)
-      const recorded = rows.filter((r) => r.time).length
-      return { run, rows, missing: Math.max(0, (run.count ?? 0) - recorded) }
-    })
-    .filter((b) => b.rows.length || b.missing)
-
-  if (blocks.length === 0) return <p className="job-empty">표시할 로그가 없습니다.</p>
-  return (
-    <table className="logtype-timeline">
-      <tbody>
-        {blocks.map((b) => (
-          <Fragment key={b.run.id}>
-            {b.rows.map((r) => (
-              <tr key={r.key}>
-                <td className="logtype-tl-time mono" title={`회차 ${fmtKst(b.run.run_at)}`}>{r.time || fmtKst(b.run.run_at)}</td>
-                <td className="logtype-tl-app">{b.run.app && <span className="cat-badge">{b.run.app}</span>}</td>
-                <td className="logtype-tl-msg">{r.msg}</td>
-              </tr>
-            ))}
-            {b.missing > 0 && (
-              <tr className="logtype-tl-more">
-                <td className="logtype-tl-time mono">{fmtKst(b.run.run_at)}</td>
-                <td className="logtype-tl-app" />
-                <td className="logtype-tl-msg">… 외 {b.missing}건 (시각 미기록)</td>
-              </tr>
-            )}
-          </Fragment>
-        ))}
-      </tbody>
-    </table>
   )
 }
 
@@ -144,8 +128,8 @@ function Detail({ id, password, onBack, onChanged }) {
       {(type.runs ?? []).length === 0
         ? <p className="job-empty">아직 기록이 없습니다.</p>
         : view === 'timeline'
-          ? <Timeline runs={type.runs} />
-          : type.runs.map((r) => <RunRow key={r.id} run={r} />)}
+          ? <Timeline entries={type.entries} />
+          : type.runs.map((r) => <RunRow key={r.id} run={r} entries={type.entries} />)}
 
       {confirm && (
         <ConfirmDialog

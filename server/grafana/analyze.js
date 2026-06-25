@@ -4,7 +4,16 @@
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai'
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
-const MAX_ROWS_PER_APP = 30 // 프롬프트에 넣는 앱별 로그 상한(토큰 절약)
+// 프롬프트에 넣고 분류 대상이 되는 앱별 로그 상한. LOG_FETCH(50)와 맞춰 가져온 행 전부를
+// 유형에 매핑 가능하게 한다. 이 목록의 #번호가 곧 응답 rows[]의 인덱스.
+export const MAX_ROWS_PER_APP = 50
+
+// 앱 → 프롬프트에 노출한(=rows 인덱스 기준이 되는) 행 목록. 프롬프트/적재가 동일하게 사용.
+export function appRowIndex(groups) {
+  const m = new Map()
+  for (const g of groups ?? []) m.set(g.app, (g.rows ?? []).slice(0, MAX_ROWS_PER_APP))
+  return m
+}
 
 export const RESPONSE_SCHEMA = {
   type: SchemaType.OBJECT,
@@ -20,21 +29,10 @@ export const RESPONSE_SCHEMA = {
           app: { type: SchemaType.STRING, description: '해당 앱 이름' },
           count: { type: SchemaType.INTEGER, description: '이 유형이 대표하는 원시 로그 수' },
           existingMatch: { type: SchemaType.STRING, description: '기존 유형 목록 중 동일하면 그 label, 아니면 빈 문자열' },
-          logs: {
+          rows: {
             type: SchemaType.ARRAY,
-            description: '메시지 기준으로 중복을 정리한 대표 로그 (최대 5개). 단 발생 시각은 묶지 말고 모두 보존.',
-            items: {
-              type: SchemaType.OBJECT,
-              properties: {
-                msg: { type: SchemaType.STRING },
-                times: {
-                  type: SchemaType.ARRAY,
-                  description: '이 메시지가 발생한 모든 시각(원시 로그의 time)을 빠짐없이 나열. 같은 메시지가 3번이면 시각 3개.',
-                  items: { type: SchemaType.STRING },
-                },
-              },
-              required: ['msg'],
-            },
+            description: '이 유형에 속한 원시 로그의 번호(해당 앱 로그 목록의 #번호). 같은 메시지가 3번이면 번호 3개를 모두 나열.',
+            items: { type: SchemaType.INTEGER },
           },
         },
         required: ['label', 'app', 'count'],
@@ -57,13 +55,13 @@ export function buildAnalyzePrompt(groups, existingTypes = []) {
   const logBlocks = groups
     .map((g) => {
       const rows = (g.rows ?? []).slice(0, MAX_ROWS_PER_APP)
-        .map((r) => `  [${r.time}] ${r.msg}`).join('\n')
-      return `## 앱: ${g.app} (총 ${g.count}건)\n${rows || '  (대표 로그 없음)'}`
+        .map((r, i) => `  [#${i}] [${r.time}] ${r.msg}`).join('\n')
+      return `## 앱: ${g.app} (총 ${g.count}건)\n${rows || '  (로그 없음)'}`
     })
     .join('\n\n')
 
-  return `당신은 운영 모니터링 보조자입니다. 아래는 최근 24시간 앱별 ERROR 로그입니다.
-반복되는 동일/유사 로그는 하나의 유형으로 묶어 중복을 정리하고, 운영자가 솔루션에서 확인해야 할 핵심만 추려 주세요.
+  return `당신은 운영 모니터링 보조자입니다. 아래는 최근 24시간 앱별 ERROR 로그입니다. 각 로그 앞 [#번호]는 그 앱 안에서의 로그 번호입니다.
+반복되는 동일/유사 로그를 하나의 유형으로 묶어 분류하고, 운영자가 솔루션에서 확인해야 할 핵심만 추려 주세요.
 
 [기존 로그 유형] — 가능하면 아래 유형을 재사용(existingMatch에 동일 label 기입), 새로운 패턴만 신규 유형으로:
 ${typeList}
@@ -73,8 +71,9 @@ ${logBlocks}
 
 요구사항:
 - summary: 운영자가 오늘 점검할 포인트를 한국어 불릿 3~6개로 간단히(심각도 높은 것 우선). 각 불릿은 "- "로 시작하고 항목마다 줄바꿈(\\n)으로 구분.
-- types: 로그를 유형별로 묶어 각 유형마다 label/description/app/count/logs 작성.
-- logs: 메시지가 같은 로그는 한 항목으로 묶되(최대 5개), 그 메시지가 발생한 모든 시각을 times 배열에 빠짐없이 보존. 같은 메시지가 3번 나오면 times에 시각 3개.
+- types: 로그를 유형별로 묶어 각 유형마다 label/description/app/count/rows 작성.
+- rows: 그 유형에 속한 로그의 [#번호]를 모두 나열(해당 앱 기준). 같은 메시지가 3번 나오면 번호 3개 모두 포함. 한 번호는 한 유형에만.
+- count: 그 유형의 총 발생 추정 건수(앱 총 건수가 표시 행보다 많을 수 있음).
 - 추측성 과장 금지. 실제 로그에 근거할 것.`
 }
 
@@ -89,30 +88,31 @@ export function parseAnalysis(text) {
   return { summary, types }
 }
 
-// 대표 로그 한 건 정규화. times[]는 모든 발생 시각을 보존, time은 하위호환용 대표 시각(첫 시각).
-function normalizeLog(r) {
-  const msg = String(r?.msg ?? '')
-  const times = Array.isArray(r?.times)
-    ? r.times.map((x) => String(x ?? '')).filter(Boolean)
-    : (r?.time ? [String(r.time)] : [])
-  return { msg, times, time: times[0] ?? '' }
+// rows[]: 정수 인덱스만 추려 음수 제거·중복 제거. 범위 밖 인덱스는 적재 단계에서 무시.
+function normalizeRows(rows) {
+  if (!Array.isArray(rows)) return []
+  const seen = new Set()
+  const out = []
+  for (const v of rows) {
+    const n = Math.trunc(Number(v))
+    if (Number.isInteger(n) && n >= 0 && !seen.has(n)) { seen.add(n); out.push(n) }
+  }
+  return out
 }
 
 function normalizeType(t) {
   if (!t || typeof t !== 'object') return null
   const label = String(t.label ?? '').trim()
   if (!label) return null
-  const logs = Array.isArray(t.logs)
-    ? t.logs.map(normalizeLog).filter((r) => r.msg).slice(0, 5)
-    : []
-  const count = Number.isFinite(t.count) ? Math.max(0, Math.trunc(t.count)) : logs.length
+  const rows = normalizeRows(t.rows)
+  const count = Number.isFinite(t.count) ? Math.max(0, Math.trunc(t.count)) : rows.length
   return {
     label,
     description: String(t.description ?? '').trim(),
     app: String(t.app ?? '').trim(),
     count,
     existingMatch: String(t.existingMatch ?? '').trim(),
-    logs,
+    rows,
   }
 }
 
