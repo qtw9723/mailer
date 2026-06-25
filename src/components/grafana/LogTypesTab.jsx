@@ -178,12 +178,21 @@ export default function LogTypesTab({ password }) {
     return <p className="job-empty">저장된 로그 유형이 없습니다. 발송 시각에 LLM이 분석해 유형을 쌓습니다.</p>
   }
 
+  // 이번 회차(=오늘 KST)에 로그가 추가된 유형은 강조 + 상단 정렬.
+  // last_seen_at은 회차마다 갱신됨. 입력이 last_seen_at desc라 stable 정렬로 그룹 내 순서 유지.
+  const todayKey = kstDateKey(new Date().toISOString())
+  const fresh = (t) => kstDateKey(t.last_seen_at) === todayKey
+  const sorted = [...types].sort((a, b) => (fresh(b) ? 1 : 0) - (fresh(a) ? 1 : 0))
+
   return (
     <div className="logtype-list">
-      {types.map((t) => (
-        <button key={t.id} className="logtype-row" onClick={() => setSelected(t.id)}>
+      {sorted.map((t) => (
+        <button key={t.id} className={`logtype-row${fresh(t) ? ' logtype-row-fresh' : ''}`} onClick={() => setSelected(t.id)}>
           <div className="logtype-row-main">
-            <strong>{t.label}</strong>
+            <span className="logtype-row-label">
+              <strong>{t.label}</strong>
+              {fresh(t) && <span className="logtype-today-badge">이번 회차</span>}
+            </span>
             <span className="logtype-row-count mono">누적 {t.total_count}건</span>
           </div>
           <div className="logtype-row-sub">
