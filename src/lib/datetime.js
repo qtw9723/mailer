@@ -10,6 +10,11 @@ export function fmtKst(ts) {
   return `${kst.getUTCFullYear()}-${p(kst.getUTCMonth() + 1)}-${p(kst.getUTCDate())} ${p(kst.getUTCHours())}:${p(kst.getUTCMinutes())}`
 }
 
+// UTC ISO → KST 날짜 키 "YYYY-MM-DD". 같은 날 비교용(예: 오늘 수집 여부).
+export function kstDateKey(ts) {
+  return fmtKst(ts).slice(0, 10)
+}
+
 // 마지막 발송 시각 + 간격(분) → 다음 발송 예정 시각. 미발송이면 null(= 곧 발송).
 export function nextSendAt(lastSentAt, intervalMinutes) {
   if (!lastSentAt) return null

@@ -1084,6 +1084,15 @@ body {
 .logtype-tl-msg { color: var(--color-text-primary); word-break: break-word; }
 .logtype-tl-more td { color: var(--color-text-faint); font-style: italic; border-left: none; }
 .logtype-tl-more { border-left: 3px solid transparent; }
+/* 오늘(KST) 수집된 로그 강조 */
+.logtype-tl-today { border-left-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+.logtype-tl-today .logtype-tl-time { color: var(--color-accent); }
+.logtype-today-badge {
+  display: inline-block; margin-left: 8px; padding: 1px 6px; border-radius: 10px;
+  font-size: 10px; font-weight: 600; vertical-align: middle;
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
 
 /* ── 챗봇 모니터링 ── */
 .scenario-steps { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }

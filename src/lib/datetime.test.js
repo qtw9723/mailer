@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fmtKst, nextSendAt, formatNextSend } from './datetime.js'
+import { fmtKst, nextSendAt, formatNextSend, kstDateKey } from './datetime.js'
 
 describe('fmtKst', () => {
   it('UTC 00:00 → KST 09:00', () => {
@@ -12,6 +12,18 @@ describe('fmtKst', () => {
     expect(fmtKst('')).toBe('')
     expect(fmtKst(null)).toBe('')
     expect(fmtKst(undefined)).toBe('')
+  })
+})
+
+describe('kstDateKey', () => {
+  it('UTC 시각 → KST 날짜 키', () => {
+    expect(kstDateKey('2026-06-05T00:00:00Z')).toBe('2026-06-05')
+  })
+  it('자정 경계: UTC 23:30 → KST 다음날 날짜', () => {
+    expect(kstDateKey('2026-06-05T23:30:00Z')).toBe('2026-06-06')
+  })
+  it('빈 값은 빈 문자열', () => {
+    expect(kstDateKey('')).toBe('')
   })
 })
 
