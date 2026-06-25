@@ -45,7 +45,7 @@ describe('parseEsResponses', () => {
     const queries = [{ label: 'soe' }, { label: 'c3' }]
     const out = parseEsResponses(responses, queries, '@timestamp')
     expect(out.soe.count).toBe(2)
-    expect(out.soe.rows[0]).toEqual({ time: '2026-06-03 16:37', msg: 'boom' })
+    expect(out.soe.rows[0]).toEqual({ time: '2026-06-03 16:37', ts: '2026-06-03T07:37:49Z', msg: 'boom' })
     expect(out.c3.count).toBe(0)
   })
   it('message 없으면 log→msg 순으로 폴백', () => {

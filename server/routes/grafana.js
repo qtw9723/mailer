@@ -199,7 +199,7 @@ router.get('/tick', async (req, res) => {
       const analysis = await analyzeLogs(data.logs, await listTypes())
       summary = analysis.summary ?? ''
       if (analysis.types.length || summary) {
-        if (analysis.types.length) await resolveAndPersist(analysis, now.toISOString())
+        if (analysis.types.length) await resolveAndPersist(analysis, now.toISOString(), data.logs)
         await saveSettings({ last_analysis: { summary, generated_at: now.toISOString() } })
       }
     } catch { /* 분석 생략하고 발송 진행 */ }
