@@ -1,7 +1,7 @@
 // server/routes/grafana.js
 import { Router } from 'express'
 import { gatherReportData, queryPrometheus, queryElasticsearch } from '../grafana/client.js'
-import { buildReport, buildEmailHtml } from '../grafana/report.js'
+import { buildReport, buildEmailHtml, combineLogQueries, grafanaLogExploreUrl } from '../grafana/report.js'
 import { sendReportEmail } from '../grafana/email.js'
 import { getSettings, saveSettings, markSent } from '../grafana/settings.js'
 import { shouldSend, shouldAnalyze, kstDateString } from '../grafana/schedule.js'
@@ -20,6 +20,23 @@ function auth(req, res, next) {
 
 function envRecipients() {
   return (process.env.GRAFANA_EMAIL_TO ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+}
+
+// 메일 상단 링크. 앱 리포트 페이지(APP_BASE_URL, 미설정 시 Vercel 도메인 폴백)
+// + 활성 로그 쿼리로 만든 Grafana Explore 딥링크(활성 앱 전체가 한 번에 조회됨).
+function reportLinks(logQueries) {
+  const base = (process.env.APP_BASE_URL
+    || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : ''))
+    .replace(/\/$/, '')
+  return {
+    reportUrl: base ? `${base}/grafana` : '',
+    grafanaUrl: grafanaLogExploreUrl({
+      base: process.env.GRAFANA_URL,
+      esUid: process.env.ES_UID,
+      query: combineLogQueries(logQueries),
+      hours: LOG_HOURS,
+    }),
+  }
 }
 
 // 설정의 log_lag_hours(0~24 정수)만 채택, 그 외엔 기본 상수로 폴백
@@ -230,7 +247,7 @@ router.get('/tick', async (req, res) => {
     } catch { /* 분석 실패: last_analysis_date 미갱신 → 다음 tick에서 재시도 */ }
 
     if (willSend) {
-      await sendReportEmail(buildEmailHtml(report, summary), recipients)
+      await sendReportEmail(buildEmailHtml(report, summary, reportLinks(settings.log_queries)), recipients)
       await markSent(kstDateString(now))
     }
 

@@ -2,8 +2,14 @@
 import { describe, it, expect } from 'vitest'
 import {
   extractPromValue, normalizeEsIndex, fmtTimeKst, parseEsResponses, buildReport, buildEmailHtml, esLogRange,
-  summaryToBullets,
+  summaryToBullets, combineLogQueries, grafanaLogExploreUrl,
 } from './report.js'
+
+// panes= 파라미터를 디코드해 JSON으로 파싱
+function parsePanes(url) {
+  const m = url.match(/[?&]panes=([^&]+)/)
+  return m ? JSON.parse(decodeURIComponent(m[1])) : null
+}
 
 describe('extractPromValue', () => {
   it('frames의 마지막 값 추출', () => {
@@ -118,15 +124,48 @@ describe('buildEmailHtml', () => {
     expect(html).toContain('(KST)')
   })
 
-  it('로그가 5건 초과면 "외 N건" 행 표시', () => {
-    const rows = Array.from({ length: 8 }, (_, i) => ({ time: `t${i}`, msg: `m${i}` }))
-    const html = buildEmailHtml(baseReport({ logs: [{ app: 'soe', count: 8, rows, error: null }] }))
-    expect(html).toContain('외 3건')
+  it('로그가 20건 초과면 "외 N건" 행 표시', () => {
+    const rows = Array.from({ length: 25 }, (_, i) => ({ time: `t${i}`, msg: `m${i}` }))
+    const html = buildEmailHtml(baseReport({ logs: [{ app: 'soe', count: 25, rows, error: null }] }))
+    expect(html).toContain('외 5건')
   })
 
-  it('로그가 5건 이하면 "외" 초과행 없음', () => {
-    const html = buildEmailHtml(baseReport())
+  it('로그가 20건 이하면 "외" 초과행 없음', () => {
+    const rows = Array.from({ length: 20 }, (_, i) => ({ time: `t${i}`, msg: `m${i}` }))
+    const html = buildEmailHtml(baseReport({ logs: [{ app: 'soe', count: 20, rows, error: null }] }))
     expect(html).not.toContain('외 ')
+  })
+
+  it('메시지가 500자 초과면 앞 500자만 + 잘림 표시', () => {
+    const msg = 'x'.repeat(600)
+    const html = buildEmailHtml(baseReport({ logs: [{ app: 'soe', count: 1, rows: [{ time: 't', msg }], error: null }] }))
+    expect(html).toContain('x'.repeat(500))       // 앞부분 표시
+    expect(html).not.toContain('x'.repeat(600))    // 전문은 미표시
+    expect(html).toContain('[뒤 100자 생략]')       // 잘림 표시(잘린 글자수)
+  })
+
+  it('메시지가 500자 이하면 잘림 표시 없이 전문', () => {
+    const msg = 'y'.repeat(500)
+    const html = buildEmailHtml(baseReport({ logs: [{ app: 'soe', count: 1, rows: [{ time: 't', msg }], error: null }] }))
+    expect(html).toContain('y'.repeat(500))
+    expect(html).not.toContain('자 생략')
+  })
+
+  it('링크 주어지면 리포트/그라파나 버튼 href 포함(& 이스케이프)', () => {
+    const html = buildEmailHtml(baseReport(), '', {
+      reportUrl: 'https://mailer-two-chi.vercel.app/grafana',
+      grafanaUrl: 'https://grafana.next-ti.ai/explore?a=1&b=2',
+    })
+    expect(html).toContain('href="https://mailer-two-chi.vercel.app/grafana"')
+    expect(html).toContain('href="https://grafana.next-ti.ai/explore?a=1&amp;b=2"')
+    expect(html).toContain('리포트 페이지')
+    expect(html).toContain('Grafana')
+  })
+
+  it('링크 미제공이면 버튼 미포함', () => {
+    const html = buildEmailHtml(baseReport())
+    expect(html).not.toContain('리포트 페이지')
+    expect(html).not.toContain('href=')
   })
 
   it('로그 그룹 에러는 메시지 표기하고 행 테이블 없음', () => {
@@ -173,6 +212,59 @@ describe('summaryToBullets', () => {
     expect(summaryToBullets('')).toEqual([])
     expect(summaryToBullets(null)).toEqual([])
     expect(summaryToBullets('   ')).toEqual([])
+  })
+})
+
+describe('combineLogQueries', () => {
+  it('활성 쿼리를 괄호로 감싸 OR로 결합', () => {
+    const out = combineLogQueries([
+      { label: 'soe', query: 'app.keyword:"soe" && error' },
+      { label: 'c3', query: 'app.keyword:"c3" && error' },
+    ])
+    expect(out).toBe('(app.keyword:"soe" && error) OR (app.keyword:"c3" && error)')
+  })
+  it('enabled:false 는 제외', () => {
+    const out = combineLogQueries([
+      { label: 'soe', query: 'app.keyword:"soe" && error' },
+      { label: 'c3', query: 'app.keyword:"c3" && error', enabled: false },
+    ])
+    expect(out).toBe('(app.keyword:"soe" && error)')
+  })
+  it('활성 쿼리가 없으면 빈 문자열', () => {
+    expect(combineLogQueries([])).toBe('')
+    expect(combineLogQueries([{ label: 'x', query: 'y', enabled: false }])).toBe('')
+    expect(combineLogQueries(null)).toBe('')
+  })
+})
+
+describe('grafanaLogExploreUrl', () => {
+  const base = 'https://grafana.next-ti.ai'
+  const esUid = 'ff6mo4stnwc1sa'
+
+  it('base/explore + schemaVersion + panes 포함', () => {
+    const url = grafanaLogExploreUrl({ base, esUid, query: 'app.keyword:"soe" && error' })
+    expect(url.startsWith('https://grafana.next-ti.ai/explore?')).toBe(true)
+    expect(url).toContain('schemaVersion=1')
+    expect(url).toContain('orgId=1')
+    expect(url).toContain('panes=')
+  })
+  it('panes에 결합 쿼리·ES uid·로그 뷰·24시간 범위가 담김', () => {
+    const query = '(app.keyword:"soe" && error) OR (app.keyword:"c3" && error)'
+    const panes = parsePanes(grafanaLogExploreUrl({ base, esUid, query }))
+    const pane = Object.values(panes)[0]
+    expect(pane.queries[0].query).toBe(query)
+    expect(pane.queries[0].datasource.uid).toBe(esUid)
+    expect(pane.queries[0].metrics[0].type).toBe('logs')
+    expect(pane.range).toEqual({ from: 'now-24h', to: 'now' })
+    expect(pane.panelsState.logs.visualisationType).toBe('table')
+  })
+  it('base나 esUid 없으면 빈 문자열', () => {
+    expect(grafanaLogExploreUrl({ base: '', esUid, query: 'x' })).toBe('')
+    expect(grafanaLogExploreUrl({ base, esUid: '', query: 'x' })).toBe('')
+  })
+  it('base 끝 슬래시 정규화', () => {
+    const url = grafanaLogExploreUrl({ base: base + '/', esUid, query: 'x' })
+    expect(url.startsWith('https://grafana.next-ti.ai/explore?')).toBe(true)
   })
 })
 
