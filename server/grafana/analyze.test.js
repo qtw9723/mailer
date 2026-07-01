@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
-import { activeLogGroups, buildAnalyzePrompt, parseAnalysis, analyzeLogs } from './analyze.js'
+import { activeLogGroups, buildAnalyzePrompt, parseAnalysis, analyzeLogs, isRetryableError, withRetry } from './analyze.js'
+
+const noSleep = () => Promise.resolve()
 
 describe('activeLogGroups', () => {
   it('에러·빈 그룹 제외, 로그 있는 것만', () => {
@@ -53,6 +55,48 @@ describe('parseAnalysis', () => {
   })
 })
 
+describe('isRetryableError', () => {
+  it('Gemini 503(과부하)은 재시도 대상', () => {
+    expect(isRetryableError(new Error('[503 Service Unavailable] This model is currently experiencing high demand.'))).toBe(true)
+  })
+  it('429 rate limit / overloaded 도 재시도 대상', () => {
+    expect(isRetryableError(new Error('[429] rate limit exceeded'))).toBe(true)
+    expect(isRetryableError(new Error('model is overloaded'))).toBe(true)
+  })
+  it('네트워크 계열(fetch failed/timeout)도 재시도 대상', () => {
+    expect(isRetryableError(new Error('fetch failed'))).toBe(true)
+    expect(isRetryableError(new Error('ETIMEDOUT'))).toBe(true)
+  })
+  it('설정 오류(GEMINI_API_KEY)는 재시도 안 함', () => {
+    expect(isRetryableError(new Error('GEMINI_API_KEY 미설정'))).toBe(false)
+  })
+  it('일반 오류는 재시도 안 함', () => {
+    expect(isRetryableError(new Error('boom'))).toBe(false)
+  })
+})
+
+describe('withRetry', () => {
+  it('일시 오류 후 성공하면 최종 성공값 반환', async () => {
+    let n = 0
+    const fn = () => { n++; if (n < 3) throw new Error('[503] high demand'); return 'ok' }
+    const r = await withRetry(fn, { sleep: noSleep })
+    expect(r).toBe('ok')
+    expect(n).toBe(3)
+  })
+  it('재시도 불가 오류는 즉시 throw(한 번만 호출)', async () => {
+    let n = 0
+    const fn = () => { n++; throw new Error('boom') }
+    await expect(withRetry(fn, { sleep: noSleep })).rejects.toThrow('boom')
+    expect(n).toBe(1)
+  })
+  it('재시도 소진 시 마지막 오류 throw', async () => {
+    let n = 0
+    const fn = () => { n++; throw new Error('[503] high demand') }
+    await expect(withRetry(fn, { retries: 2, sleep: noSleep })).rejects.toThrow('503')
+    expect(n).toBe(3) // 최초 1 + 재시도 2
+  })
+})
+
 describe('analyzeLogs', () => {
   it('분석 대상 없으면 LLM 호출 없이 빈 결과', async () => {
     const model = { generateContent: vi.fn() }
@@ -70,5 +114,16 @@ describe('analyzeLogs', () => {
     expect(model.generateContent).toHaveBeenCalledOnce()
     expect(r.summary).toBe('s')
     expect(r.types[0].label).toBe('L')
+  })
+  it('Gemini 503 일시 실패는 재시도 후 성공', async () => {
+    const generateContent = vi.fn()
+      .mockRejectedValueOnce(new Error('[503 Service Unavailable] high demand'))
+      .mockResolvedValueOnce({ response: { text: () => JSON.stringify({ summary: 's', types: [] }) } })
+    const r = await analyzeLogs(
+      [{ app: 'soe', count: 1, rows: [{ time: 't', msg: 'm' }], error: null }],
+      [], { generateContent }, { retry: { sleep: noSleep } },
+    )
+    expect(generateContent).toHaveBeenCalledTimes(2)
+    expect(r.summary).toBe('s')
   })
 })

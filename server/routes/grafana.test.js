@@ -179,7 +179,7 @@ describe('GET /api/grafana/tick', () => {
     getSettings.mockResolvedValueOnce({ recipients: ['a@x.com'], send_hour: 9, enabled: false, last_sent_date: null })
     const res = await request(app).get('/api/grafana/tick').set('Authorization', 'Bearer cron-secret')
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ sent: false, reason: 'disabled' })
+    expect(res.body).toEqual({ sent: false, analyzed: false, reason: 'disabled' })
     expect(sendReportEmail).not.toHaveBeenCalled()
   })
   it('시각 불일치 시 skip', async () => {
@@ -199,7 +199,7 @@ describe('GET /api/grafana/tick', () => {
       sendReportEmail.mockResolvedValueOnce()
       const res = await request(app).get('/api/grafana/tick').set('Authorization', 'Bearer cron-secret')
       expect(res.status).toBe(200)
-      expect(res.body).toEqual({ sent: true, alerts: 0 })
+      expect(res.body).toEqual({ sent: true, analyzed: true, alerts: 0 })
       expect(gatherReportData).toHaveBeenCalledWith(M, L, 4)
       expect(sendReportEmail).toHaveBeenCalledOnce()
       expect(sendReportEmail.mock.calls[0][1]).toEqual(['a@x.com'])
@@ -209,15 +209,17 @@ describe('GET /api/grafana/tick', () => {
       vi.useRealTimers()
     }
   })
-  it('recipients 없고 env 폴백도 없으면 no-recipients', async () => {
+  it('발송 대상이나 수신자 없으면 발송은 skip(no-recipients)하되 분석은 진행', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-06-05T00:00:00Z'))
     process.env.GRAFANA_EMAIL_TO = ''
     try {
-      getSettings.mockResolvedValueOnce({ recipients: [], send_hour: 9, enabled: true, last_sent_date: '2000-01-01' })
+      getSettings.mockResolvedValueOnce({ recipients: [], send_hour: 9, enabled: true, last_sent_date: '2000-01-01', last_analysis_date: null })
+      gatherReportData.mockResolvedValueOnce(SAMPLE)
       const res = await request(app).get('/api/grafana/tick').set('Authorization', 'Bearer cron-secret')
-      expect(res.body).toEqual({ sent: false, reason: 'no-recipients' })
+      expect(res.body).toEqual({ sent: false, analyzed: true, alerts: 0, reason: 'no-recipients' })
       expect(sendReportEmail).not.toHaveBeenCalled()
+      expect(markSent).not.toHaveBeenCalled()
     } finally {
       vi.useRealTimers()
     }
@@ -309,8 +311,9 @@ describe('GET /api/grafana/tick (분석 저장)', () => {
       sendReportEmail.mockResolvedValueOnce()
       const res = await request(app).get('/api/grafana/tick').set('Authorization', 'Bearer cron-secret')
       expect(res.body.sent).toBe(true)
+      expect(res.body.analyzed).toBe(true)
       expect(resolveAndPersist).toHaveBeenCalledOnce()
-      expect(saveSettings).toHaveBeenCalledWith({ last_analysis: { summary: '점검 요약', generated_at: '2026-06-05T00:00:00.000Z' } })
+      expect(saveSettings).toHaveBeenCalledWith({ last_analysis_date: '2026-06-05', last_analysis: { summary: '점검 요약', generated_at: '2026-06-05T00:00:00.000Z' } })
       expect(sendReportEmail.mock.calls[0][0]).toContain('점검 요약')
     } finally {
       vi.useRealTimers()
@@ -326,8 +329,44 @@ describe('GET /api/grafana/tick (분석 저장)', () => {
       sendReportEmail.mockResolvedValueOnce()
       const res = await request(app).get('/api/grafana/tick').set('Authorization', 'Bearer cron-secret')
       expect(res.body.sent).toBe(true)
+      expect(res.body.analyzed).toBe(false)
       expect(sendReportEmail).toHaveBeenCalledOnce()
       expect(markSent).toHaveBeenCalledOnce()
+      // 분석 실패 시 last_analysis_date를 남기지 않아 다음 tick에서 재시도 가능해야 함
+      expect(saveSettings).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('이미 발송했으나(already-sent) 오늘 분석 전이면 메일 없이 분석만 재시도', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-06-05T00:00:00Z')) // KST 9시
+    try {
+      // 발송 시각 7시(이미 지남), 오늘 이미 발송 완료, 그러나 분석은 아직(어제 날짜)
+      getSettings.mockResolvedValueOnce({ recipients: ['a@x.com'], send_hour: 7, enabled: true, last_sent_date: '2026-06-05', last_analysis_date: '2026-06-04', metrics: [], log_queries: [] })
+      gatherReportData.mockResolvedValueOnce(SAMPLE)
+      analyzeLogs.mockResolvedValueOnce({ summary: '재시도 요약', types: [{ label: 'L', app: 'soe', count: 1, logs: [] }] })
+      const res = await request(app).get('/api/grafana/tick').set('Authorization', 'Bearer cron-secret')
+      expect(res.body).toEqual({ sent: false, analyzed: true, alerts: 0 })
+      expect(sendReportEmail).not.toHaveBeenCalled() // 메일 재발송 안 함
+      expect(markSent).not.toHaveBeenCalled()
+      expect(resolveAndPersist).toHaveBeenCalledOnce()
+      expect(saveSettings).toHaveBeenCalledWith({ last_analysis_date: '2026-06-05', last_analysis: { summary: '재시도 요약', generated_at: '2026-06-05T00:00:00.000Z' } })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('오늘 이미 발송·분석 완료면 아무것도 안 함(already-sent)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-06-05T00:00:00Z'))
+    try {
+      getSettings.mockResolvedValueOnce({ recipients: ['a@x.com'], send_hour: 9, enabled: true, last_sent_date: '2026-06-05', last_analysis_date: '2026-06-05' })
+      const res = await request(app).get('/api/grafana/tick').set('Authorization', 'Bearer cron-secret')
+      expect(res.body).toEqual({ sent: false, analyzed: false, reason: 'already-sent' })
+      expect(gatherReportData).not.toHaveBeenCalled()
+      expect(sendReportEmail).not.toHaveBeenCalled()
     } finally {
       vi.useRealTimers()
     }

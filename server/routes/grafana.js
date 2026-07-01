@@ -4,7 +4,7 @@ import { gatherReportData, queryPrometheus, queryElasticsearch } from '../grafan
 import { buildReport, buildEmailHtml } from '../grafana/report.js'
 import { sendReportEmail } from '../grafana/email.js'
 import { getSettings, saveSettings, markSent } from '../grafana/settings.js'
-import { shouldSend, kstDateString } from '../grafana/schedule.js'
+import { shouldSend, shouldAnalyze, kstDateString } from '../grafana/schedule.js'
 import { analyzeLogs } from '../grafana/analyze.js'
 import { listTypes, getType, updateType, deleteType, updateRun, resolveAndPersist } from '../grafana/logTypes.js'
 import { LOG_INDEX_LAG_HOURS, LOG_HOURS, LOG_FETCH, DEFAULT_METRICS, DEFAULT_LOG_QUERIES } from '../grafana/config.js'
@@ -197,29 +197,46 @@ router.get('/tick', async (req, res) => {
   try {
     const now = new Date()
     const settings = await getSettings()
-    const decision = shouldSend(settings, now)
-    if (!decision.send) return res.json({ sent: false, reason: decision.reason })
+    // 발송(하루 1회)과 AI 분석(성공할 때까지 그날 재시도)을 분리해 판단.
+    const sendDecision = shouldSend(settings, now)
+    const analyzeDecision = shouldAnalyze(settings, now)
 
-    const recipients = settings.recipients?.length ? settings.recipients : envRecipients()
-    if (recipients.length === 0) return res.json({ sent: false, reason: 'no-recipients' })
+    const recipients = sendDecision.send
+      ? (settings.recipients?.length ? settings.recipients : envRecipients())
+      : []
+    const willSend = sendDecision.send && recipients.length > 0
+
+    // 발송도 분석도 할 게 없으면 수집 전에 조기 종료.
+    if (!willSend && !analyzeDecision.run) {
+      const reason = (sendDecision.send && recipients.length === 0) ? 'no-recipients' : sendDecision.reason
+      return res.json({ sent: false, analyzed: false, reason })
+    }
 
     const data = await gatherReportData(settings.metrics, settings.log_queries, lagFrom(settings))
     const report = buildReport(data)
 
-    // LLM 분석은 best-effort: 실패해도 리포트/메일은 정상 발송. 저장은 이 시점(tick)에만.
+    // LLM 분석은 best-effort. 성공한 날만 last_analysis_date를 남겨, 일시 장애로 실패한 날은
+    // 이후 tick에서 재시도되게 한다(발송 성공과 분리). 메일 발송은 실패해도 진행.
     let summary = ''
+    let analyzed = false
     try {
       const analysis = await analyzeLogs(data.logs, await listTypes())
       summary = analysis.summary ?? ''
-      if (analysis.types.length || summary) {
-        if (analysis.types.length) await resolveAndPersist(analysis, now.toISOString(), data.logs)
-        await saveSettings({ last_analysis: { summary, generated_at: now.toISOString() } })
-      }
-    } catch { /* 분석 생략하고 발송 진행 */ }
+      if (analysis.types.length) await resolveAndPersist(analysis, now.toISOString(), data.logs)
+      const patch = { last_analysis_date: kstDateString(now) }
+      if (analysis.types.length || summary) patch.last_analysis = { summary, generated_at: now.toISOString() }
+      await saveSettings(patch)
+      analyzed = true
+    } catch { /* 분석 실패: last_analysis_date 미갱신 → 다음 tick에서 재시도 */ }
 
-    await sendReportEmail(buildEmailHtml(report, summary), recipients)
-    await markSent(kstDateString(now))
-    res.json({ sent: true, alerts: report.summary.alerts })
+    if (willSend) {
+      await sendReportEmail(buildEmailHtml(report, summary), recipients)
+      await markSent(kstDateString(now))
+    }
+
+    const body = { sent: willSend, analyzed, alerts: report.summary.alerts }
+    if (sendDecision.send && !willSend) body.reason = 'no-recipients'
+    res.json(body)
   } catch (e) {
     res.status(500).json({ error: e.message })
   }

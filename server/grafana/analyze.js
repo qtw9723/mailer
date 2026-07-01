@@ -127,13 +127,40 @@ export function getModel() {
   })
 }
 
+// Gemini 일시 장애(과부하/속도제한/네트워크)인지 판정. 설정 오류(키 없음)는 재시도 무의미.
+export function isRetryableError(e) {
+  const msg = String(e?.message ?? '')
+  if (/GEMINI_API_KEY/.test(msg)) return false
+  return /\b(429|500|502|503|504)\b/.test(msg) ||
+    /overload|high demand|unavailable|temporar|rate ?limit|deadline|timeout|ETIMEDOUT|ECONNRESET|ENOTFOUND|fetch failed/i.test(msg)
+}
+
+const defaultSleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+// 일시 오류에 한해 지수 백오프 재시도. 그 외 오류는 즉시 전파.
+// sleep 주입으로 테스트에서 실제 대기 없이 검증 가능.
+export async function withRetry(fn, { retries = 3, baseDelayMs = 1000, sleep = defaultSleep, isRetryable = isRetryableError } = {}) {
+  let attempt = 0
+  for (;;) {
+    try {
+      return await fn()
+    } catch (e) {
+      if (attempt >= retries || !isRetryable(e)) throw e
+      await sleep(baseDelayMs * 2 ** attempt)
+      attempt++
+    }
+  }
+}
+
 // 로그 분석 실행. 분석 대상이 없으면 LLM 호출 없이 빈 결과.
-// model 주입 시 그것을 사용(테스트/대체). 실패는 throw → 호출부에서 best-effort 처리.
-export async function analyzeLogs(logs, existingTypes = [], model = null) {
+// model 주입 시 그것을 사용(테스트/대체). Gemini 일시 장애는 재시도(opts.retry로 조정).
+// 재시도까지 실패하면 throw → 호출부에서 best-effort 처리.
+export async function analyzeLogs(logs, existingTypes = [], model = null, opts = {}) {
   const groups = activeLogGroups(logs)
   if (!groups.length) return { summary: '', types: [] }
   const m = model ?? getModel()
-  const result = await m.generateContent(buildAnalyzePrompt(groups, existingTypes))
+  const prompt = buildAnalyzePrompt(groups, existingTypes)
+  const result = await withRetry(() => m.generateContent(prompt), opts.retry)
   const text = typeof result?.response?.text === 'function' ? result.response.text() : (result?.response?.text ?? '')
   return parseAnalysis(text)
 }
