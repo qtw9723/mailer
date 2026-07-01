@@ -120,11 +120,62 @@ export function buildSummaryBlock(summary, esc) {
 <ul style="margin:0;padding-left:20px;color:#333;font-size:14px">${items}</ul></div>`
 }
 
+// href 속성용 이스케이프(& 와 " 만; URL 안의 %/? 등은 유효 문자라 보존)
+const escAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+
+// 활성(enabled !== false) 로그 쿼리들을 하나의 ES query_string으로 결합.
+// 각 쿼리를 괄호로 감싸 OR 결합 → 활성 앱 전체가 한 번에 조회된다.
+export function combineLogQueries(logQueries) {
+  const active = (logQueries ?? []).filter((q) => q && q.enabled !== false && q.query)
+  return active.map((q) => `(${q.query})`).join(' OR ')
+}
+
+// 활성 로그 쿼리를 담은 Grafana Explore(ES 로그 테이블) 딥링크 생성.
+// base(GRAFANA_URL)나 esUid(ES_UID)가 없으면 빈 문자열(링크 생략).
+export function grafanaLogExploreUrl({ base, esUid, query = '', hours = 24 } = {}) {
+  const b = String(base ?? '').replace(/\/$/, '')
+  if (!b || !esUid) return ''
+  const panes = {
+    do8: {
+      datasource: esUid,
+      queries: [{
+        refId: 'A',
+        datasource: { type: 'elasticsearch', uid: esUid },
+        query,
+        alias: '',
+        metrics: [{ id: '1', type: 'logs', settings: { limit: '500' } }],
+        bucketAggs: [],
+        timeField: '@timestamp',
+      }],
+      range: { from: `now-${hours}h`, to: 'now' },
+      panelsState: {
+        logs: {
+          columns: { 0: '@timestamp', 1: '_id', 2: 'out_logs_message', 3: 'app', 4: '_type' },
+          visualisationType: 'table',
+          refId: 'A',
+        },
+      },
+    },
+  }
+  return `${b}/explore?schemaVersion=1&panes=${encodeURIComponent(JSON.stringify(panes))}&orgId=1`
+}
+
+// 메일 상단 링크 버튼 바. URL이 있는 것만 렌더, 하나도 없으면 빈 문자열.
+export function buildLinkBar({ reportUrl, grafanaUrl } = {}) {
+  const btn = (href, label, bg) =>
+    `<a href="${escAttr(href)}" style="display:inline-block;padding:10px 18px;margin:0 8px 8px 0;background:${bg};color:#fff;text-decoration:none;font-size:14px;font-weight:600;border-radius:4px">${label}</a>`
+  const parts = []
+  if (reportUrl) parts.push(btn(reportUrl, '📊 리포트 페이지 열기', '#2196F3'))
+  if (grafanaUrl) parts.push(btn(grafanaUrl, '🔍 Grafana에서 보기', '#F46800'))
+  return parts.length ? `<div style="margin-bottom:20px">${parts.join('')}</div>` : ''
+}
+
 // 이메일용 HTML (라이트 테마, 메일 클라이언트 호환 — 전부 인라인 스타일)
-export function buildEmailHtml(report, summary = '') {
+// links: { reportUrl, grafanaUrl } — 없으면 링크 바 생략
+export function buildEmailHtml(report, summary = '', links = {}) {
   const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
-  const LOG_SHOW = 5
-  const MSG_PREVIEW = 150
+  const LOG_SHOW = 20
+  const MSG_PREVIEW = 500
   const alerts = report.summary.alerts
   const summaryText = alerts ? `⚠️ 이상 ${alerts}건 — 점검 필요` : '✅ 정상'
   const summaryStyle = alerts
@@ -155,9 +206,14 @@ export function buildEmailHtml(report, summary = '') {
     const icon = isAlert ? '<span style="color:#c62828">⚠</span>' : '<span style="color:#2e7d32">✓</span>'
     const head = `<div style="margin-bottom:15px"><strong>${icon} ${esc(g.app)}</strong>: <span style="color:#666">${g.error ? esc(g.error) : g.count + '건'}</span>`
     if (g.error || !g.count) return head + '</div>'
-    const rows = g.rows.slice(0, LOG_SHOW).map((r) =>
-      `<tr><td style="${td};color:#999;font-size:12px">${esc(r.time)}</td><td style="${td};color:#555;word-break:break-word">${esc(r.msg.slice(0, MSG_PREVIEW))}</td></tr>`
-    ).join('')
+    const rows = g.rows.slice(0, LOG_SHOW).map((r) => {
+      const msg = String(r.msg ?? '')
+      const cut = msg.length - MSG_PREVIEW
+      const body = cut > 0
+        ? esc(msg.slice(0, MSG_PREVIEW)) + ` <span style="color:#c62828;font-size:12px">[뒤 ${cut}자 생략]</span>`
+        : esc(msg)
+      return `<tr><td style="${td};color:#999;font-size:12px;vertical-align:top;white-space:nowrap">${esc(r.time)}</td><td style="${td};color:#555;word-break:break-word;font-family:Consolas,Menlo,monospace;font-size:13px">${body}</td></tr>`
+    }).join('')
     const overflow = g.count > LOG_SHOW
       ? `<tr><td colspan="2" style="padding:10px 12px;color:#999;text-align:center">... 외 ${g.count - LOG_SHOW}건</td></tr>`
       : ''
@@ -169,6 +225,7 @@ export function buildEmailHtml(report, summary = '') {
 <div style="max-width:800px;margin:0 auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1)">
 <h1 style="color:#333;margin:0 0 10px;font-size:24px">📊 그라파나 모니터링 보고서</h1>
 <div style="color:#666;font-size:14px;margin-bottom:20px">${esc(fmtKoreanKst(report.generatedAt))} (KST)</div>
+${buildLinkBar(links)}
 <div style="padding:15px;border-radius:6px;margin-bottom:20px;font-size:16px;font-weight:bold;${summaryStyle}">${summaryText}</div>
 ${buildSummaryBlock(summary, esc)}
 <div style="font-size:18px;font-weight:bold;color:#333;margin-bottom:20px;padding-bottom:10px;border-bottom:2px solid #2196F3">📊 지난 24시간 모니터링 현황</div>
