@@ -6,7 +6,7 @@ import { sendReportEmail } from '../grafana/email.js'
 import { getSettings, saveSettings, markSent } from '../grafana/settings.js'
 import { shouldSend, shouldAnalyze, kstDateString } from '../grafana/schedule.js'
 import { analyzeLogs } from '../grafana/analyze.js'
-import { listTypes, getType, updateType, deleteType, updateRun, resolveAndPersist } from '../grafana/logTypes.js'
+import { listTypes, listTypesWithHistory, getType, updateType, deleteType, updateRun, resolveAndPersist } from '../grafana/logTypes.js'
 import { LOG_INDEX_LAG_HOURS, LOG_HOURS, LOG_FETCH, DEFAULT_METRICS, DEFAULT_LOG_QUERIES } from '../grafana/config.js'
 
 const router = Router()
@@ -93,7 +93,7 @@ router.post('/analyze', auth, async (_req, res) => {
   try {
     const { logs } = await gatherReportData(metrics, logQueries, lagFrom(settings))
     let existing = []
-    try { existing = await listTypes() } catch { /* 기존 유형 없어도 진행 */ }
+    try { existing = await listTypesWithHistory() } catch { /* 기존 유형 없어도 진행 */ }
     const analysis = await analyzeLogs(logs, existing)
     res.json(analysis)
   } catch (e) {
@@ -237,7 +237,7 @@ router.get('/tick', async (req, res) => {
     let summary = ''
     let analyzed = false
     try {
-      const analysis = await analyzeLogs(data.logs, await listTypes())
+      const analysis = await analyzeLogs(data.logs, await listTypesWithHistory())
       summary = analysis.summary ?? ''
       if (analysis.types.length) await resolveAndPersist(analysis, now.toISOString(), data.logs)
       const patch = { last_analysis_date: kstDateString(now) }

@@ -2,6 +2,7 @@
 // 영속 로그 유형 + 회차별 집계 + 개별 로그(entries) 저장/조회. 유형은 누적, 노트는 유형에 고정.
 import db from '../db.js'
 import { activeLogGroups, appRowIndex } from './analyze.js'
+import { kstDateString } from './schedule.js'
 
 const TYPES = 'grafana_log_types'
 const RUNS = 'grafana_log_type_runs'
@@ -14,6 +15,42 @@ export async function listTypes() {
     .order('last_seen_at', { ascending: false, nullsFirst: false })
   if (error) throw error
   return data ?? []
+}
+
+// 유형 목록 + 최근 회차 추세(recentRuns). AI 분석 프롬프트용.
+// runs는 유형별 N+1 대신 최근 days일치를 일괄 조회해 유형별·KST 날짜별로 합산
+// (같은 유형이 앱별로 하루 여러 run을 가질 수 있음). 최신 날짜부터 maxPoints개.
+// 추세 조회 실패는 분석을 막지 않도록 recentRuns: []로 폴백.
+export async function listTypesWithHistory({ days = 14, maxPoints = 5 } = {}) {
+  const types = await listTypes()
+  if (!types.length) return types
+  let runs = []
+  try {
+    const since = new Date(Date.now() - days * 86400000).toISOString()
+    const { data, error } = await db
+      .from(RUNS)
+      .select('type_id, run_at, count')
+      .gte('run_at', since)
+      .order('run_at', { ascending: false })
+    if (error) throw error
+    runs = data ?? []
+  } catch {
+    return types.map((t) => ({ ...t, recentRuns: [] }))
+  }
+  // run_at desc 입력이므로 Map 삽입 순서가 곧 최신 날짜순.
+  const byType = new Map()
+  for (const r of runs) {
+    const date = kstDateString(new Date(r.run_at))
+    let dates = byType.get(r.type_id)
+    if (!dates) { dates = new Map(); byType.set(r.type_id, dates) }
+    dates.set(date, (dates.get(date) ?? 0) + (r.count ?? 0))
+  }
+  return types.map((t) => ({
+    ...t,
+    recentRuns: [...(byType.get(t.id) ?? new Map()).entries()]
+      .slice(0, maxPoints)
+      .map(([date, count]) => ({ date, count })),
+  }))
 }
 
 export async function getType(id) {
@@ -66,7 +103,7 @@ export async function resolveAndPersist(analysis, runAt, logs = []) {
     if (!type) {
       const { data, error } = await db
         .from(TYPES)
-        .insert({ label: at.label, description: at.description || null })
+        .insert({ label: at.label, description: at.description || null, ai_note: at.aiNote || null })
         .select('*')
         .single()
       if (error) throw error
@@ -95,6 +132,8 @@ export async function resolveAndPersist(analysis, runAt, logs = []) {
       total_count: nextTotal,
       last_seen_at: runAt,
       description: at.description || type.description || null,
+      // AI 관찰 메모: 이번 회차에 내용이 있을 때만 교체(빈 문자열 → 기존 유지)
+      ...(at.aiNote ? { ai_note: at.aiNote } : {}),
       updated_at: new Date().toISOString(),
     }).eq('id', type.id)
     if (e2) throw e2

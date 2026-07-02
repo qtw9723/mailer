@@ -34,6 +34,10 @@ export const RESPONSE_SCHEMA = {
             description: '이 유형에 속한 원시 로그의 번호(해당 앱 로그 목록의 #번호). 같은 메시지가 3번이면 번호 3개를 모두 나열.',
             items: { type: SchemaType.INTEGER },
           },
+          aiNote: {
+            type: SchemaType.STRING,
+            description: '이 유형에 대한 짧은 관찰 메모(빈도 추세 변화·특이점 등 운영자에게 유용한 것만). 특이사항 없으면 빈 문자열.',
+          },
         },
         required: ['label', 'app', 'count'],
       },
@@ -47,10 +51,21 @@ export function activeLogGroups(logs) {
   return (logs ?? []).filter((g) => !g.error && (g.count > 0 || (g.rows && g.rows.length)))
 }
 
-// 프롬프트 구성. 기존 유형 목록을 주입해 유형명 일관성을 유지한다.
+// 프롬프트 구성. 기존 유형 목록(메모·누적빈도·최근 추세 포함)을 주입해
+// 유형명 일관성 유지 + 기지 이슈 구분 + 빈도 급증 감지를 돕는다.
 export function buildAnalyzePrompt(groups, existingTypes = []) {
   const typeList = (existingTypes ?? [])
-    .map((t) => `- ${t.label}${t.description ? `: ${t.description}` : ''}`)
+    .map((t) => {
+      let s = `- ${t.label}${t.description ? `: ${t.description}` : ''}`
+      if (t.note) s += `\n  · 운영자 메모: ${t.note}`
+      if (t.ai_note) s += `\n  · AI 메모: ${t.ai_note}`
+      const trend = (t.recentRuns ?? [])
+        .map((r) => `${String(r.date).slice(5)}:${r.count}`).join(', ')
+      if (t.total_count != null || trend) {
+        s += `\n  · 누적 ${t.total_count ?? 0}건${trend ? ` · 최근 ${trend}` : ''}`
+      }
+      return s
+    })
     .join('\n') || '(아직 없음)'
   const logBlocks = groups
     .map((g) => {
@@ -63,7 +78,7 @@ export function buildAnalyzePrompt(groups, existingTypes = []) {
   return `당신은 운영 모니터링 보조자입니다. 아래는 최근 24시간 앱별 ERROR 로그입니다. 각 로그 앞 [#번호]는 그 앱 안에서의 로그 번호입니다.
 반복되는 동일/유사 로그를 하나의 유형으로 묶어 분류하고, 운영자가 솔루션에서 확인해야 할 핵심만 추려 주세요.
 
-[기존 로그 유형] — 가능하면 아래 유형을 재사용(existingMatch에 동일 label 기입), 새로운 패턴만 신규 유형으로:
+[기존 로그 유형] — 가능하면 아래 유형을 재사용(existingMatch에 동일 label 기입), 새로운 패턴만 신규 유형으로. 각 유형의 메모·누적/최근 빈도는 과거 회차의 기록입니다:
 ${typeList}
 
 [로그]
@@ -71,9 +86,12 @@ ${logBlocks}
 
 요구사항:
 - summary: 운영자가 오늘 점검할 포인트를 한국어 불릿 3~6개로 간단히(심각도 높은 것 우선). 각 불릿은 "- "로 시작하고 항목마다 줄바꿈(\\n)으로 구분.
+- 메모가 있는 기존 유형은 기지(旣知) 이슈 — summary에서 "기존 이슈"로 구분하고 재설명은 최소화. 신규 유형과 변화에 분석을 집중.
+- 최근 추세 대비 빈도가 급증한 유형은 summary에서 강조.
 - types: 로그를 유형별로 묶어 각 유형마다 label/description/app/count/rows 작성.
 - rows: 그 유형에 속한 로그의 [#번호]를 모두 나열(해당 앱 기준). 같은 메시지가 3번 나오면 번호 3개 모두 포함. 한 번호는 한 유형에만.
 - count: 그 유형의 총 발생 추정 건수(앱 총 건수가 표시 행보다 많을 수 있음).
+- aiNote: 유형별 짧은 관찰 메모(빈도 추세 변화·특이점 등 다음 운영자에게 유용한 것만). 특이사항 없으면 빈 문자열 — 그러면 기존 AI 메모가 유지됩니다.
 - 추측성 과장 금지. 실제 로그에 근거할 것.`
 }
 
@@ -113,6 +131,7 @@ function normalizeType(t) {
     count,
     existingMatch: String(t.existingMatch ?? '').trim(),
     rows,
+    aiNote: String(t.aiNote ?? '').trim(),
   }
 }
 

@@ -27,6 +27,29 @@ describe('buildAnalyzePrompt', () => {
   it('기존 유형 없으면 안내 문구', () => {
     expect(buildAnalyzePrompt([{ app: 'x', count: 1, rows: [] }], [])).toContain('(아직 없음)')
   })
+  it('메모·빈도·추세가 있으면 유형 블록에 렌더', () => {
+    const p = buildAnalyzePrompt(
+      [{ app: 'soe', count: 1, rows: [{ time: '10:00', msg: 'e' }] }],
+      [{
+        label: '타임아웃', description: '소켓 타임아웃', note: '모니터링 중',
+        ai_note: '평시 5~8건', total_count: 47,
+        recentRuns: [{ date: '2026-06-24', count: 7 }, { date: '2026-06-23', count: 5 }],
+      }],
+    )
+    expect(p).toContain('운영자 메모: 모니터링 중')
+    expect(p).toContain('AI 메모: 평시 5~8건')
+    expect(p).toContain('누적 47건')
+    expect(p).toContain('최근 06-24:7, 06-23:5')
+  })
+  it('메모·빈도 없는 유형은 기존처럼 한 줄만', () => {
+    const p = buildAnalyzePrompt(
+      [{ app: 'x', count: 1, rows: [] }],
+      [{ label: 'A', description: 'd' }],
+    )
+    expect(p).toContain('- A: d')
+    expect(p).not.toContain('· 운영자 메모')
+    expect(p).not.toContain('· 누적')
+  })
 })
 
 describe('parseAnalysis', () => {
@@ -52,6 +75,17 @@ describe('parseAnalysis', () => {
   it('rows는 정수만·음수/중복 제거, 같은 메시지 여러 번이면 번호 모두 보존', () => {
     const text = JSON.stringify({ summary: '', types: [{ label: 'x', app: 'a', count: 3, rows: [0, 0, 1, -1, 2.9, 'x', 3] }] })
     expect(parseAnalysis(text).types[0].rows).toEqual([0, 1, 2, 3])
+  })
+  it('aiNote 정규화: 문자열 trim, 없으면 빈 문자열', () => {
+    const r = parseAnalysis(JSON.stringify({
+      summary: 's',
+      types: [
+        { label: 'A', app: 'x', count: 1, aiNote: '  평시 5건 수준  ' },
+        { label: 'B', app: 'x', count: 1 },
+      ],
+    }))
+    expect(r.types[0].aiNote).toBe('평시 5건 수준')
+    expect(r.types[1].aiNote).toBe('')
   })
 })
 
