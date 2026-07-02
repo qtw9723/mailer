@@ -53,6 +53,17 @@ describe('parseAnalysis', () => {
     const text = JSON.stringify({ summary: '', types: [{ label: 'x', app: 'a', count: 3, rows: [0, 0, 1, -1, 2.9, 'x', 3] }] })
     expect(parseAnalysis(text).types[0].rows).toEqual([0, 1, 2, 3])
   })
+  it('aiNote 정규화: 문자열 trim, 없으면 빈 문자열', () => {
+    const r = parseAnalysis(JSON.stringify({
+      summary: 's',
+      types: [
+        { label: 'A', app: 'x', count: 1, aiNote: '  평시 5건 수준  ' },
+        { label: 'B', app: 'x', count: 1 },
+      ],
+    }))
+    expect(r.types[0].aiNote).toBe('평시 5건 수준')
+    expect(r.types[1].aiNote).toBe('')
+  })
 })
 
 describe('isRetryableError', () => {

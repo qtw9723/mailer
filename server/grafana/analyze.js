@@ -34,6 +34,10 @@ export const RESPONSE_SCHEMA = {
             description: '이 유형에 속한 원시 로그의 번호(해당 앱 로그 목록의 #번호). 같은 메시지가 3번이면 번호 3개를 모두 나열.',
             items: { type: SchemaType.INTEGER },
           },
+          aiNote: {
+            type: SchemaType.STRING,
+            description: '이 유형에 대한 짧은 관찰 메모(빈도 추세 변화·특이점 등 운영자에게 유용한 것만). 특이사항 없으면 빈 문자열.',
+          },
         },
         required: ['label', 'app', 'count'],
       },
@@ -113,6 +117,7 @@ function normalizeType(t) {
     count,
     existingMatch: String(t.existingMatch ?? '').trim(),
     rows,
+    aiNote: String(t.aiNote ?? '').trim(),
   }
 }
 
