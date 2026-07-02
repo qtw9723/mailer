@@ -11,6 +11,7 @@ function mockQuery(result) {
     update: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    gte: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     limit: vi.fn().mockReturnThis(),
     single: vi.fn().mockResolvedValue(result),
@@ -19,7 +20,7 @@ function mockQuery(result) {
   }
 }
 
-const { listTypes, getType, updateType, deleteType, updateRun, resolveAndPersist } = await import('./logTypes.js')
+const { listTypes, listTypesWithHistory, getType, updateType, deleteType, updateRun, resolveAndPersist } = await import('./logTypes.js')
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -27,6 +28,46 @@ describe('listTypes', () => {
   it('유형 목록 반환', async () => {
     mockFrom.mockReturnValueOnce(mockQuery({ data: [{ id: 't1', label: 'A' }], error: null }))
     expect(await listTypes()).toEqual([{ id: 't1', label: 'A' }])
+  })
+})
+
+describe('listTypesWithHistory', () => {
+  it('유형별 KST 날짜 합산 추세를 최신순 maxPoints개 붙임', async () => {
+    const typesQ = mockQuery({ data: [{ id: 't1', label: 'A' }, { id: 't2', label: 'B' }], error: null })
+    // 같은 유형·같은 날(KST) 두 run(앱별) → 합산. run_at desc 입력.
+    const runsQ = mockQuery({ data: [
+      { type_id: 't1', run_at: '2026-07-01T23:00:00Z', count: 3 }, // KST 2026-07-02
+      { type_id: 't1', run_at: '2026-07-01T22:00:00Z', count: 2 }, // KST 2026-07-02 → 합산 5
+      { type_id: 't1', run_at: '2026-06-30T23:00:00Z', count: 4 }, // KST 2026-07-01
+    ], error: null })
+    mockFrom.mockReturnValueOnce(typesQ).mockReturnValueOnce(runsQ)
+    const r = await listTypesWithHistory()
+    expect(r[0].recentRuns).toEqual([
+      { date: '2026-07-02', count: 5 },
+      { date: '2026-07-01', count: 4 },
+    ])
+    expect(r[1].recentRuns).toEqual([])
+  })
+  it('maxPoints 초과 날짜는 절단', async () => {
+    const typesQ = mockQuery({ data: [{ id: 't1', label: 'A' }], error: null })
+    const runs = [6, 5, 4, 3, 2, 1].map((d) => (
+      { type_id: 't1', run_at: `2026-06-2${d}T03:00:00Z`, count: d }
+    ))
+    mockFrom.mockReturnValueOnce(typesQ).mockReturnValueOnce(mockQuery({ data: runs, error: null }))
+    const r = await listTypesWithHistory({ maxPoints: 5 })
+    expect(r[0].recentRuns).toHaveLength(5)
+    expect(r[0].recentRuns[0].date).toBe('2026-06-26')
+  })
+  it('추세 조회 실패 시 recentRuns 빈 배열로 폴백(throw 안 함)', async () => {
+    const typesQ = mockQuery({ data: [{ id: 't1', label: 'A' }], error: null })
+    mockFrom.mockReturnValueOnce(typesQ).mockReturnValueOnce(mockQuery({ data: null, error: new Error('db down') }))
+    const r = await listTypesWithHistory()
+    expect(r).toEqual([{ id: 't1', label: 'A', recentRuns: [] }])
+  })
+  it('유형이 없으면 runs 조회 없이 빈 배열', async () => {
+    mockFrom.mockReturnValueOnce(mockQuery({ data: [], error: null }))
+    expect(await listTypesWithHistory()).toEqual([])
+    expect(mockFrom).toHaveBeenCalledTimes(1)
   })
 })
 
