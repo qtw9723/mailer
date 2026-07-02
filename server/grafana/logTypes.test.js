@@ -128,4 +128,35 @@ describe('resolveAndPersist', () => {
     await resolveAndPersist({ types: [] }, '2026-06-24T00:00:00Z')
     expect(mockFrom).toHaveBeenCalledTimes(1)
   })
+  it('aiNote 있으면 ai_note 갱신, 빈 문자열이면 기존 유지', async () => {
+    const listQ = mockQuery({ data: [
+      { id: 't1', label: 'A', total_count: 1 },
+      { id: 't2', label: 'B', total_count: 1 },
+    ], error: null })
+    const run1 = mockQuery({ data: { id: 1 }, error: null })
+    const upd1 = mockQuery({ error: null })
+    const run2 = mockQuery({ data: { id: 2 }, error: null })
+    const upd2 = mockQuery({ error: null })
+    mockFrom.mockReturnValueOnce(listQ)
+      .mockReturnValueOnce(run1).mockReturnValueOnce(upd1)
+      .mockReturnValueOnce(run2).mockReturnValueOnce(upd2)
+    await resolveAndPersist({ types: [
+      { label: 'A', app: 'x', count: 1, rows: [], existingMatch: 'A', aiNote: '추세 증가' },
+      { label: 'B', app: 'x', count: 1, rows: [], existingMatch: 'B', aiNote: '' },
+    ] }, '2026-07-02T00:00:00Z')
+    expect(upd1.update).toHaveBeenCalledWith(expect.objectContaining({ ai_note: '추세 증가' }))
+    expect(upd2.update.mock.calls[0][0]).not.toHaveProperty('ai_note')
+  })
+  it('신규 유형 insert에 ai_note 포함', async () => {
+    const listQ = mockQuery({ data: [], error: null })
+    const insQ = mockQuery({ data: { id: 'nt', label: 'N', total_count: 0 }, error: null })
+    const runQ = mockQuery({ data: { id: 3 }, error: null })
+    const updQ = mockQuery({ error: null })
+    mockFrom.mockReturnValueOnce(listQ).mockReturnValueOnce(insQ)
+      .mockReturnValueOnce(runQ).mockReturnValueOnce(updQ)
+    await resolveAndPersist({ types: [
+      { label: 'N', app: 'x', count: 2, rows: [], existingMatch: '', aiNote: '신규 등장' },
+    ] }, '2026-07-02T00:00:00Z')
+    expect(insQ.insert).toHaveBeenCalledWith(expect.objectContaining({ ai_note: '신규 등장' }))
+  })
 })

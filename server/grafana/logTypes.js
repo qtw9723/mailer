@@ -66,7 +66,7 @@ export async function resolveAndPersist(analysis, runAt, logs = []) {
     if (!type) {
       const { data, error } = await db
         .from(TYPES)
-        .insert({ label: at.label, description: at.description || null })
+        .insert({ label: at.label, description: at.description || null, ai_note: at.aiNote || null })
         .select('*')
         .single()
       if (error) throw error
@@ -95,6 +95,8 @@ export async function resolveAndPersist(analysis, runAt, logs = []) {
       total_count: nextTotal,
       last_seen_at: runAt,
       description: at.description || type.description || null,
+      // AI 관찰 메모: 이번 회차에 내용이 있을 때만 교체(빈 문자열 → 기존 유지)
+      ...(at.aiNote ? { ai_note: at.aiNote } : {}),
       updated_at: new Date().toISOString(),
     }).eq('id', type.id)
     if (e2) throw e2
