@@ -153,6 +153,10 @@ function Detail({ id, password, onBack, onChanged }) {
       {type.description && <p className="logtype-desc">{type.description}</p>}
       <div className="logtype-stat mono">누적 {type.total_count}건 · 마지막 {type.last_seen_at ? fmtKst(type.last_seen_at) : '-'}</div>
 
+      {type.ai_note && (
+        <div className="logtype-ai-note">🤖 <strong>AI 메모</strong> {type.ai_note}</div>
+      )}
+
       <label className="form-label">노트</label>
       <textarea className="form-textarea" value={note} onChange={(e) => setNote(e.target.value)} placeholder="이 유형에 대한 메모…" />
       <div className="modal-actions">
