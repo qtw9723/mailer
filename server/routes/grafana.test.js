@@ -12,7 +12,7 @@ vi.mock('../grafana/settings.js', () => ({
 }))
 vi.mock('../grafana/analyze.js', () => ({ analyzeLogs: vi.fn() }))
 vi.mock('../grafana/logTypes.js', () => ({
-  listTypes: vi.fn(), getType: vi.fn(), updateType: vi.fn(), deleteType: vi.fn(), updateRun: vi.fn(), resolveAndPersist: vi.fn(),
+  listTypes: vi.fn(), listTypesWithHistory: vi.fn(), getType: vi.fn(), updateType: vi.fn(), deleteType: vi.fn(), updateRun: vi.fn(), resolveAndPersist: vi.fn(),
 }))
 
 import { gatherReportData, queryPrometheus, queryElasticsearch } from '../grafana/client.js'
@@ -20,7 +20,7 @@ import { LOG_HOURS, LOG_FETCH, LOG_INDEX_LAG_HOURS } from '../grafana/config.js'
 import { sendReportEmail } from '../grafana/email.js'
 import { getSettings, saveSettings, markSent } from '../grafana/settings.js'
 import { analyzeLogs } from '../grafana/analyze.js'
-import { listTypes, getType, updateType, deleteType, updateRun, resolveAndPersist } from '../grafana/logTypes.js'
+import { listTypes, listTypesWithHistory, getType, updateType, deleteType, updateRun, resolveAndPersist } from '../grafana/logTypes.js'
 const { default: grafanaRouter } = await import('./grafana.js')
 
 const app = express()
@@ -40,6 +40,7 @@ beforeEach(() => {
   // LLM/유형 기본 목: 분석 없음, 유형 없음 (개별 테스트에서 덮어씀)
   analyzeLogs.mockResolvedValue({ summary: '', types: [] })
   listTypes.mockResolvedValue([])
+  listTypesWithHistory.mockResolvedValue([])
 })
 
 describe('GET /api/grafana/report', () => {
