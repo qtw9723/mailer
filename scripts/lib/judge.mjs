@@ -1,12 +1,22 @@
+// 속성명+값 → CSS 속성 셀렉터. 값의 CSS 문자열 위험문자(\, ")를 이스케이프.
+export function buildAttrSelector(name, value) {
+  const escaped = String(value ?? '').trim().replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  return `[${String(name).trim()}="${escaped}"]`
+}
+
 // 시나리오 스텝 정규화: type 없는 구버전 스텝은 say로 간주.
-// selector는 스텝별 대상 오버라이드(발화=입력창, 버튼=클릭 대상).
+// 대상 지정 우선순위: attr(속성명+값) > selector(CSS) > 텍스트. 발화=입력창, 버튼=클릭 대상.
 export function normalizeStep(step) {
   const type = step.type === 'click' ? 'click' : 'say'
+  const attrName = step.attr?.name?.trim()
+  const selector = attrName
+    ? buildAttrSelector(step.attr.name, step.attr.value)
+    : (step.selector?.trim() || null)
   return {
     type,
     text: type === 'click' ? step.click : step.say,
     expect: step.expect,
-    selector: step.selector?.trim() || null,
+    selector,
   }
 }
 
