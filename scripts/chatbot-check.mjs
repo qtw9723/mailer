@@ -69,7 +69,10 @@ async function checkBot(browser, bot) {
   const started = Date.now()
   const page = await browser.newPage()
   try {
-    await page.goto(bot.url, { waitUntil: 'networkidle', timeout: 30_000 })
+    // domcontentloaded로 대기(networkidle는 챗봇 위젯의 웹소켓·롱폴링·하트비트 때문에
+    // 영원히 idle이 안 돼 화면이 정상이어도 timeout 남). 실제 요소 준비는 아래
+    // findInput/findClickable의 15초 폴링이 담당한다.
+    await page.goto(bot.url, { waitUntil: 'domcontentloaded', timeout: 30_000 })
       .catch(err => { throw new Error(`goto_failed: ${err.message.slice(0, 120)}`) })
 
     for (const [i, rawStep] of bot.scenario.entries()) {
