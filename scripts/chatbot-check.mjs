@@ -52,6 +52,19 @@ async function findClickable(page, text, selector) {
   return null
 }
 
+// 기대 키워드가 어느 프레임에든 노출되는지 폴링(교차 프레임 응답 대응).
+// 예: 하나은행은 동의 팝업이 부모 프레임, 챗봇 응답은 채팅 iframe에 나온다.
+async function waitForTextAnyFrame(page, expect, timeout) {
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    for (const frame of page.frames()) {
+      if (await frame.getByText(expect).first().isVisible().catch(() => false)) return true
+    }
+    await page.waitForTimeout(500)
+  }
+  return false
+}
+
 async function checkBot(browser, bot) {
   const started = Date.now()
   const page = await browser.newPage()
@@ -61,31 +74,26 @@ async function checkBot(browser, bot) {
 
     for (const [i, rawStep] of bot.scenario.entries()) {
       const step = normalizeStep(rawStep)
-      let frame
 
       if (step.type === 'click') {
         const found = await findClickable(page, step.text, step.selector)
         if (!found) throw new Error(`button_not_found: 스텝 ${i + 1}에서 ${step.selector ? `셀렉터 "${step.selector}"` : `"${step.text}" 버튼`}을 찾지 못함`)
-        frame = found.frame
         await found.target.click()
       } else {
         // 스텝별 셀렉터 > 봇 레벨 셀렉터(구버전 호환) > 기본 휴리스틱
         const found = await findInput(page, step.selector ?? bot.input_selector)
         if (!found) throw new Error(`input_not_found: 스텝 ${i + 1}에서 입력창을 찾지 못함`)
-        frame = found.frame
         await found.input.fill(step.text)
         await found.input.press('Enter')
       }
 
-      // 응답 검사는 액션과 같은 프레임에서 수행
-      const appeared = await frame
-        .getByText(step.expect)
-        .first()
-        .waitFor({ state: 'visible', timeout: STEP_TIMEOUT_MS })
-        .then(() => true)
-        .catch(() => false)
+      // 응답 검사: 액션 프레임을 포함한 모든 프레임에서 기대 키워드 탐색
+      // (동의 팝업=부모 프레임, 응답=채팅 iframe 등 교차 프레임 케이스 대응)
+      const appeared = await waitForTextAnyFrame(page, step.expect, STEP_TIMEOUT_MS)
       if (!appeared) {
-        const pageText = await frame.locator('body').innerText().catch(() => '')
+        // 실패 발췌는 모든 프레임 본문을 합쳐서 수집
+        let pageText = ''
+        for (const f of page.frames()) pageText += (await f.locator('body').innerText().catch(() => '')) + '\n'
         const verdict = judgeStep(pageText, step.expect)
         throw new Error(`timeout: 스텝 ${i + 1} ${verdict.reason}\n응답 발췌: ${verdict.excerpt ?? '(없음)'}`)
       }
