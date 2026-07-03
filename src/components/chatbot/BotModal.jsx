@@ -2,27 +2,35 @@ import { useState } from 'react'
 import { Plus, X, Settings2 } from 'lucide-react'
 import Modal from '../shared/Modal.jsx'
 
-// 저장 형식: { type: 'say'|'click', say|click: 텍스트, expect: 키워드, selector?: CSS 셀렉터 }
-// 구버전(type 없음)은 say로 간주. selector는 발화=입력창 / 버튼=클릭 대상 오버라이드.
-const emptyStep = () => ({ type: 'say', text: '', expect: '', selector: '', showSel: false })
+// 저장 형식: { type: 'say'|'click', say|click: 텍스트, expect: 키워드,
+//   selector?: CSS 셀렉터, attr?: { name, value } }
+// 구버전(type 없음)은 say로 간주. 대상 지정: 속성(attr) > CSS(selector) > 텍스트.
+const emptyStep = () => ({ type: 'say', text: '', expect: '', selector: '', attrName: '', attrValue: '', findBy: 'text', showSel: false })
 
 function toEditable(step) {
   const type = step.type === 'click' ? 'click' : 'say'
   const selector = step.selector ?? ''
+  const attrName = step.attr?.name ?? ''
+  const attrValue = step.attr?.value ?? ''
+  const findBy = attrName ? 'attr' : (selector ? 'css' : 'text')
   return {
     type,
     text: type === 'click' ? (step.click ?? '') : (step.say ?? ''),
     expect: step.expect ?? '',
-    selector,
-    showSel: !!selector,
+    selector, attrName, attrValue, findBy,
+    showSel: findBy !== 'text',
   }
 }
 
-function toStored({ type, text, expect, selector }) {
+function toStored({ type, text, expect, selector, attrName, attrValue, findBy }) {
   const base = type === 'click'
     ? { type: 'click', click: text.trim(), expect: expect.trim() }
     : { type: 'say', say: text.trim(), expect: expect.trim() }
-  return selector.trim() ? { ...base, selector: selector.trim() } : base
+  if (findBy === 'attr' && attrName.trim() && attrValue.trim())
+    return { ...base, attr: { name: attrName.trim(), value: attrValue.trim() } }
+  if (findBy === 'css' && selector.trim())
+    return { ...base, selector: selector.trim() }
+  return base
 }
 
 export default function BotModal({ bot, onSubmit, onClose, loading, categories = [], onAddCategory }) {
@@ -41,7 +49,14 @@ export default function BotModal({ bot, onSubmit, onClose, loading, categories =
   const setStep = (i, key, value) =>
     setSteps(prev => prev.map((s, idx) => idx === i ? { ...s, [key]: value } : s))
 
-  const stepValid = (s) => (s.text.trim() || s.selector.trim()) && s.expect.trim()
+  const stepValid = (s) => {
+    const hasLocator = s.type === 'say'
+      ? s.text.trim() // 발화는 타이핑할 메시지가 필요
+      : (s.findBy === 'attr' ? (s.attrName.trim() && s.attrValue.trim())
+        : s.findBy === 'css' ? s.selector.trim()
+        : s.text.trim())
+    return hasLocator && s.expect.trim()
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -143,15 +158,45 @@ export default function BotModal({ bot, onSubmit, onClose, loading, categories =
                 </div>
                 {s.showSel && (
                   <div className="scenario-step-selector">
-                    <input
-                      className="form-input mono"
-                      value={s.selector}
-                      onChange={e => setStep(i, 'selector', e.target.value)}
-                      placeholder={s.type === 'click'
-                        ? '클릭할 요소 CSS 셀렉터 (예: #btn-reserve) — 비우면 버튼 텍스트로 탐색'
-                        : '입력창 CSS 셀렉터 (예: #chat-input-text) — 비우면 자동 탐색'}
-                      aria-label={`스텝 ${i + 1} 셀렉터`}
-                    />
+                    <select
+                      className="form-select scenario-type"
+                      value={s.findBy}
+                      onChange={e => setStep(i, 'findBy', e.target.value)}
+                      aria-label={`스텝 ${i + 1} 찾기 방식`}
+                    >
+                      <option value="text">텍스트</option>
+                      <option value="attr">속성</option>
+                      <option value="css">CSS 셀렉터</option>
+                    </select>
+                    {s.findBy === 'attr' && (
+                      <>
+                        <input
+                          className="form-input mono"
+                          value={s.attrName}
+                          onChange={e => setStep(i, 'attrName', e.target.value)}
+                          placeholder="속성명 (예: data-action)"
+                          aria-label={`스텝 ${i + 1} 속성명`}
+                        />
+                        <input
+                          className="form-input mono"
+                          value={s.attrValue}
+                          onChange={e => setStep(i, 'attrValue', e.target.value)}
+                          placeholder="속성값 (예: guest-guide)"
+                          aria-label={`스텝 ${i + 1} 속성값`}
+                        />
+                      </>
+                    )}
+                    {s.findBy === 'css' && (
+                      <input
+                        className="form-input mono"
+                        value={s.selector}
+                        onChange={e => setStep(i, 'selector', e.target.value)}
+                        placeholder={s.type === 'click'
+                          ? '클릭할 요소 CSS 셀렉터 (예: #btn-reserve)'
+                          : '입력창 CSS 셀렉터 (예: #chat-input-text)'}
+                        aria-label={`스텝 ${i + 1} 셀렉터`}
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -162,7 +207,8 @@ export default function BotModal({ bot, onSubmit, onClose, loading, categories =
           </button>
           <p className="form-hint">
             발화는 입력창에 타이핑, 버튼은 화면의 해당 텍스트 버튼을 클릭합니다.
-            ⚙으로 스텝별 CSS 셀렉터를 직접 지정할 수 있습니다 (발화=입력창, 버튼=클릭 대상).
+            ⚙로 찾기 방식(텍스트/속성/CSS)을 지정할 수 있습니다. 속성은 하나의
+            속성명+값이 정확히 일치하는 요소를 찾습니다(예: data-action = guest-guide).
             기대 키워드는 버튼 텍스트와 다른 문구로. 매일 08:30 자동 체크.
           </p>
         </div>

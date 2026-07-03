@@ -1108,7 +1108,9 @@ body {
 .scenario-steps { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
 .scenario-step-group { display: flex; flex-direction: column; gap: 6px; }
 .scenario-step { display: flex; align-items: center; gap: 8px; }
-.scenario-step-selector { padding-left: 22px; }
+.scenario-step-selector { padding-left: 22px; display: flex; align-items: center; gap: 8px; }
+.scenario-step-selector .form-input { flex: 1; min-width: 0; }
+.scenario-step-selector .scenario-type { flex: 0 0 auto; }
 .scenario-step-gear {
   display: flex; align-items: center; justify-content: center;
   width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
