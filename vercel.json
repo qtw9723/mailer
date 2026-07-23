@@ -3,9 +3,6 @@
   "functions": {
     "api/index.js": { "maxDuration": 60 }
   },
-  "redirects": [
-    { "source": "/((?!api/).*)", "destination": "https://mww-smarthub.vercel.app/hub/cs", "permanent": false }
-  ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/(.*)", "destination": "/index.html" }
