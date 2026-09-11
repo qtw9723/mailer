@@ -1,11 +1,10 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Mail, BarChart3, Bot, LogOut, Hexagon } from 'lucide-react'
+import { Mail, BarChart3, LogOut, Hexagon } from 'lucide-react'
 import { clearCookie } from '../../lib/auth.js'
 
 const TOOLS = [
   { path: '/mailer', icon: Mail, label: 'Mailer' },
   { path: '/grafana', icon: BarChart3, label: 'Grafana 리포트' },
-  { path: '/chatbot', icon: Bot, label: '챗봇 모니터링' },
 ]
 
 export default function IconRail() {
