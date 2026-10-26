@@ -1,4 +1,5 @@
 // server/routes/mailer.js
+import { timingSafeEqual } from 'node:crypto'
 import { Router } from 'express'
 import db from '../db.js'
 import { sendMail } from '../smtp.js'
@@ -13,6 +14,18 @@ const ALLOWED_JOB_PATCH_FIELDS = new Set([
 
 function auth(req, res, next) {
   if (req.headers['x-app-password'] !== process.env.APP_PASSWORD) {
+    return res.status(401).json({ error: 'unauthorized' })
+  }
+  next()
+}
+
+// 스케줄러 전용 인증: Authorization: Bearer <CRON_SECRET>
+// CRON_SECRET이 설정되어 있지 않으면 모든 요청을 거부한다.
+function cronAuth(req, res, next) {
+  const secret = process.env.CRON_SECRET
+  const given = Buffer.from(req.headers['authorization'] ?? '')
+  const expected = Buffer.from(`Bearer ${secret}`)
+  if (!secret || given.length !== expected.length || !timingSafeEqual(given, expected)) {
     return res.status(401).json({ error: 'unauthorized' })
   }
   next()
@@ -157,7 +170,7 @@ router.delete('/senders/:id', auth, async (req, res) => {
 })
 
 // POST /api/mailer/tick — 스케줄러가 호출
-router.post('/tick', async (_req, res) => {
+router.post('/tick', cronAuth, async (_req, res) => {
   try {
     const now = Date.now()
     const { data: jobs, error } = await db.from('mail_jobs').select('*').eq('is_active', true)
