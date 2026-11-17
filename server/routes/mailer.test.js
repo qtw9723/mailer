@@ -40,10 +40,12 @@ app.use(express.json())
 app.use('/api/mailer', mailerRouter)
 
 const AUTH = { 'x-app-password': 'test-password' }
+const CRON = { Authorization: 'Bearer cron-secret' }
 
 beforeEach(() => {
   vi.clearAllMocks()
   process.env.APP_PASSWORD = 'test-password'
+  process.env.CRON_SECRET = 'cron-secret'
 })
 
 describe('GET /api/mailer/jobs', () => {
@@ -90,6 +92,33 @@ describe('GET /api/mailer/jobs', () => {
   })
 })
 
+describe('POST /api/mailer/tick — 인증', () => {
+  afterEach(() => { mockFrom.mockReset() })
+
+  it('Authorization 헤더가 없으면 401', async () => {
+    const res = await request(app).post('/api/mailer/tick')
+    expect(res.status).toBe(401)
+    expect(mockFrom).not.toHaveBeenCalled()
+  })
+
+  it('앱 비밀번호만으로는 401 (스케줄러 전용)', async () => {
+    const res = await request(app).post('/api/mailer/tick').set(AUTH)
+    expect(res.status).toBe(401)
+  })
+
+  it('CRON_SECRET이 틀리면 401', async () => {
+    const res = await request(app).post('/api/mailer/tick').set({ Authorization: 'Bearer wrong' })
+    expect(res.status).toBe(401)
+    expect(mockFrom).not.toHaveBeenCalled()
+  })
+
+  it('서버에 CRON_SECRET이 없으면 401', async () => {
+    delete process.env.CRON_SECRET
+    const res = await request(app).post('/api/mailer/tick').set({ Authorization: 'Bearer undefined' })
+    expect(res.status).toBe(401)
+  })
+})
+
 describe('POST /api/mailer/tick — send_log 기록', () => {
   // mockImplementation은 clearAllMocks로 지워지지 않으므로 직접 reset
   afterEach(() => { mockFrom.mockReset() })
@@ -108,7 +137,7 @@ describe('POST /api/mailer/tick — send_log 기록', () => {
       }
       return mockQuery({ data: [dueJob], error: null })
     })
-    const res = await request(app).post('/api/mailer/tick')
+    const res = await request(app).post('/api/mailer/tick').set(CRON)
     expect(res.status).toBe(200)
     expect(res.body.failed).toBe(0)
     expect(inserted).toEqual([{ job_id: 'j1', ok: true, error: null }])
@@ -124,7 +153,7 @@ describe('POST /api/mailer/tick — send_log 기록', () => {
       }
       return mockQuery({ data: [dueJob], error: null })
     })
-    const res = await request(app).post('/api/mailer/tick')
+    const res = await request(app).post('/api/mailer/tick').set(CRON)
     expect(res.status).toBe(200)
     expect(res.body.failed).toBe(1)
     expect(inserted).toHaveLength(1)
